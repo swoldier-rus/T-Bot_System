@@ -25,12 +25,13 @@ function waitForVite(port = 5173, maxTries = 30) {
 
 async function runDev() {
   console.log('[Dev] Starting Vite dev server...');
-  const npxCmd = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+  const isWin = process.platform === 'win32';
+  const npxCmd = isWin ? 'npx.cmd' : 'npx';
 
   const vite = spawn(npxCmd, ['vite'], {
     cwd: path.resolve(__dirname, '..'),
     stdio: 'inherit',
-    shell: false,
+    shell: isWin,
   });
 
   try {
@@ -45,14 +46,14 @@ async function runDev() {
         NODE_ENV: 'development',
       },
       stdio: 'inherit',
-      shell: false,
+      shell: isWin,
     });
 
     electron.on('close', (code) => {
       console.log(`[Dev] Electron closed (${code}). Stopping Vite...`);
       try {
-        if (process.platform === 'win32' && vite.pid) {
-          spawn('taskkill', ['/pid', String(vite.pid), '/T', '/F']);
+        if (isWin && vite.pid) {
+          spawn('taskkill', ['/pid', String(vite.pid), '/T', '/F'], { shell: true });
         } else {
           vite.kill();
         }
