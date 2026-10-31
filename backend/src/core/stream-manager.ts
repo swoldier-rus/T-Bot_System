@@ -1,0 +1,962 @@
+import fs from 'fs';
+import path from 'path';
+import { ChannelCredentials, createChannel } from 'nice-grpc';
+import { Helpers, TinkoffInvestApi } from 'tinkoff-invest-api';
+import { InstrumentStatus } from 'tinkoff-invest-api/dist/generated/common';
+import {
+  CandleInterval,
+  LastPriceType,
+  SubscriptionAction,
+  SubscriptionInterval,
+  TradeSourceType,
+} from 'tinkoff-invest-api/dist/generated/marketdata';
+import { env } from '../config/env';
+import { MOEX_TOP_SHARES } from '../config/moex-instruments';
+import {
+  Candle,
+  Instrument,
+  OrderBook,
+  OrderBookLevel,
+  TradeDirection,
+  TradeEvent,
+} from '../types/market';
+import { EventBus } from './event-bus';
+import { SharedState } from './shared-state';
+
+export interface StreamStats {
+  fps: number;
+  candleCount: number;
+  tradeCount: number;
+  orderBookCount: number;
+  totalPackets: number;
+  lastPacketTime: number;
+}
+
+export type ConnectionState = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'MOCK_STREAM';
+
+/**
+ * Patch TinkoffInvestApi.prototype.createChannel to configure TLS credentials for T-Bank gRPC endpoints.
+ * In Russia, T-Bank services use the Russian National Root CA (Минцифры РФ).
+ * Configuring rejectUnauthorized: false prevents "self-signed certificate in certificate chain" errors.
+ */
+(TinkoffInvestApi.prototype as any).createChannel = function (this: any) {
+  const { endpoint, channelOptions } = this.options;
+  const credentials = /^localhost/i.test(endpoint)
+    ? ChannelCredentials.createInsecure()
+    : ChannelCredentials.createSsl(null, null, null, {
+        rejectUnauthorized: env.TINKOFF_REJECT_UNAUTHORIZED ?? false,
+      });
+  return createChannel(endpoint, credentials, channelOptions);
+};
+
+export class StreamManager {
+  private api: TinkoffInvestApi | null = null;
+  private connectionState: ConnectionState = 'DISCONNECTED';
+  private reconnectAttempt = 0;
+  private reconnectTimer: NodeJS.Timeout | null = null;
+  private mockIntervalTimer: NodeJS.Timeout | null = null;
+  private statsIntervalTimer: NodeJS.Timeout | null = null;
+  private broadcastIntervalTimer: NodeJS.Timeout | null = null;
+
+  // Set of subscribed tickers
+  private readonly subscribedTickers = new Set<string>();
+
+  // Metrics tracking
+  private packetCounter = 0;
+  private candleCounter = 0;
+  private tradeCounter = 0;
+  private orderBookCounter = 0;
+  private totalPackets = 0;
+  private currentFps = 0;
+  private lastPacketTimestamp = 0;
+
+  // Active unsubscribe callbacks from MarketStream
+  private unsubscribeHandlers: Array<() => Promise<void>> = [];
+
+  constructor(
+    private readonly eventBus: EventBus,
+    private readonly sharedState: SharedState
+  ) {
+    // Pre-populate known MOEX instruments
+    for (const inst of MOEX_TOP_SHARES) {
+      this.sharedState.setInstrument(inst);
+      this.subscribedTickers.add(inst.ticker);
+    }
+  }
+
+  public getConnectionState(): ConnectionState {
+    return this.connectionState;
+  }
+
+  public getStats(): StreamStats {
+    return {
+      fps: this.currentFps,
+      candleCount: this.candleCounter,
+      tradeCount: this.tradeCounter,
+      orderBookCount: this.orderBookCounter,
+      totalPackets: this.totalPackets,
+      lastPacketTime: this.lastPacketTimestamp,
+    };
+  }
+
+  public getSubscribedTickers(): string[] {
+    return Array.from(this.subscribedTickers);
+  }
+
+  /**
+   * Starts the stream manager. If valid TINKOFF_TOKEN is provided, connects to gRPC.
+   * Otherwise launches realistic mock stream for local testing.
+   */
+  public async start(): Promise<void> {
+    this.startStatsTimer();
+    this.startTickerBroadcastTimer();
+
+    const token = env.TINKOFF_TOKEN?.trim();
+    const isMock = !token || token.startsWith('t.your_api_token') || token === '';
+
+    if (isMock) {
+      this.startMockStream();
+      return;
+    }
+
+    await this.connectGrpc();
+  }
+
+  /**
+   * Graceful shutdown of gRPC stream or mock generator.
+   */
+  public async stop(): Promise<void> {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
+    if (this.mockIntervalTimer) {
+      clearInterval(this.mockIntervalTimer);
+      this.mockIntervalTimer = null;
+    }
+
+    if (this.statsIntervalTimer) {
+      clearInterval(this.statsIntervalTimer);
+      this.statsIntervalTimer = null;
+    }
+
+    if (this.broadcastIntervalTimer) {
+      clearInterval(this.broadcastIntervalTimer);
+      this.broadcastIntervalTimer = null;
+    }
+
+    // Unsubscribe all active gRPC subscriptions
+    for (const unwatch of this.unsubscribeHandlers) {
+      try {
+        await unwatch();
+      } catch {
+        // ignore on shutdown
+      }
+    }
+    this.unsubscribeHandlers = [];
+
+    if (this.api?.stream?.market) {
+      try {
+        await this.api.stream.market.cancel();
+      } catch {
+        // ignore
+      }
+    }
+
+    this.connectionState = 'DISCONNECTED';
+    this.eventBus.emit('stream:disconnected', { timestamp: Date.now() });
+  }
+
+  public async subscribe(tickers: string[]): Promise<void> {
+    for (const t of tickers) {
+      this.subscribedTickers.add(t.toUpperCase());
+    }
+
+    if (this.connectionState === 'CONNECTED' && this.api) {
+      await this.applySubscriptions();
+    }
+  }
+
+  public async unsubscribe(tickers: string[]): Promise<void> {
+    for (const t of tickers) {
+      this.subscribedTickers.delete(t.toUpperCase());
+    }
+
+    if (this.connectionState === 'CONNECTED' && this.api) {
+      await this.applySubscriptions();
+    }
+  }
+
+  public async syncActiveUniverse(targetTickers: Set<string> | null): Promise<void> {
+    if (targetTickers === null) {
+      const all = this.sharedState.getAllInstruments();
+      for (const i of all) {
+        this.subscribedTickers.add(i.ticker);
+      }
+      console.info(`🌐 Active universe: ALL MOEX instruments (${this.subscribedTickers.size})`);
+    } else {
+      this.subscribedTickers.clear();
+      for (const t of targetTickers) {
+        this.subscribedTickers.add(t.toUpperCase());
+      }
+      console.info(`🎯 Active universe updated: ${this.subscribedTickers.size} instruments (${Array.from(this.subscribedTickers).slice(0, 8).join(', ')}${this.subscribedTickers.size > 8 ? '...' : ''})`);
+    }
+
+    if (this.connectionState === 'CONNECTED' && this.api) {
+      await this.applySubscriptions();
+    }
+  }
+
+  // --- gRPC Connection & Reconnection Management ---
+
+  private async connectGrpc(): Promise<void> {
+    this.connectionState = 'CONNECTING';
+
+    try {
+      const api = new TinkoffInvestApi({
+        token: env.TINKOFF_TOKEN,
+        appName: env.TINKOFF_APP_NAME,
+        endpoint: env.TINKOFF_ENDPOINT,
+      });
+      this.api = api;
+
+      // Fetch all MOEX TQBR shares to populate full list of ~250 stocks
+      try {
+        const sharesRes = await api.instruments.shares({
+          instrumentStatus: InstrumentStatus.INSTRUMENT_STATUS_BASE,
+        });
+
+        if (sharesRes.instruments) {
+          const tqbrShares = sharesRes.instruments.filter(
+            (s) => s.classCode === 'TQBR' || s.currency === 'rub'
+          );
+
+          for (const s of tqbrShares) {
+            let logoUrl: string | undefined;
+            let logoColor: string | undefined;
+            if (s.brand?.logoName) {
+              const base = s.brand.logoName.replace(/\.png$/i, '');
+              logoUrl = `https://invest-brands.cdn-tinkoff.ru/${base}x160.png`;
+              logoColor = s.brand.logoBaseColor || undefined;
+            }
+
+            const inst: Instrument = {
+              figi: s.figi,
+              ticker: s.ticker,
+              name: s.name,
+              classCode: s.classCode,
+              lot: s.lot,
+              logoUrl,
+              logoColor,
+            };
+            this.sharedState.setInstrument(inst);
+            this.subscribedTickers.add(s.ticker);
+          }
+          console.info(`📋 Loaded ${tqbrShares.length} MOEX TQBR instruments from T-Bank API`);
+        }
+      } catch (err: any) {
+        console.warn('⚠️ Could not load instruments list via API:', err.message);
+      }
+
+      // Fetch Close Prices for percentage calculation
+      try {
+        const allInst = this.sharedState.getAllInstruments();
+        const closeResp = await api.marketdata.getClosePrices({
+          instruments: allInst.map((i) => ({ instrumentId: i.figi })),
+        });
+        if (closeResp.closePrices) {
+          for (const cp of closeResp.closePrices) {
+            const price = Helpers.toNumber(cp.price);
+            if (price && price > 0) {
+              this.sharedState.setClosePrice(cp.figi, price);
+            }
+          }
+        }
+      } catch (e: any) {
+        console.warn('⚠️ Could not load close prices:', e.message);
+      }
+
+      // Fetch Last Traded Prices so every stock has current real market price immediately
+      try {
+        const allInst = this.sharedState.getAllInstruments();
+        const figis = allInst.map((i) => i.figi);
+        const lastPricesResp = await api.marketdata.getLastPrices({
+          figi: figis,
+          instrumentId: figis,
+          lastPriceType: LastPriceType.LAST_PRICE_EXCHANGE ?? 1,
+        });
+        if (lastPricesResp.lastPrices) {
+          for (const lp of lastPricesResp.lastPrices) {
+            const price = Helpers.toNumber(lp.price);
+            if (price && price > 0) {
+              this.sharedState.setLastPrice(lp.figi, price);
+            }
+          }
+          console.info(
+            `💰 Loaded last traded prices for ${lastPricesResp.lastPrices.length} instruments`
+          );
+        }
+      } catch (err: any) {
+        console.warn('⚠️ Could not load last prices:', err.message);
+      }
+
+      // Stream listeners
+      api.stream.market.on('open', () => {
+        this.reconnectAttempt = 0;
+        this.connectionState = 'CONNECTED';
+        this.eventBus.emit('stream:connected', { timestamp: Date.now() });
+      });
+
+      api.stream.market.on('close', (error?: Error) => {
+        this.connectionState = 'DISCONNECTED';
+        this.eventBus.emit('stream:disconnected', {
+          error: error?.message,
+          timestamp: Date.now(),
+        });
+        this.scheduleReconnect();
+      });
+
+      api.stream.market.on('error', (error: Error) => {
+        console.error('⚠️ [gRPC Stream Error]:', error.message);
+      });
+
+      // Warmup historical candles for immediate RSI & Stochastic calculation
+      await this.warmupHistoricalData(api);
+
+      // Start periodic refresh of last & close prices for all instruments
+      this.startPriceRefreshTimer();
+
+      await this.applySubscriptions();
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error('❌ Failed to establish gRPC stream connection:', errorMsg);
+      this.scheduleReconnect();
+    }
+  }
+
+  private async warmupHistoricalData(api: TinkoffInvestApi): Promise<void> {
+    const cachedCount = await this.loadCandlesCache();
+    if (cachedCount > 0) {
+      console.info(`⚡ Restored ${cachedCount} candles from local disk cache! Instant warmup active.`);
+    }
+
+    const priorityTickers = Array.from(
+      new Set([
+        ...env.DEFAULT_TICKERS,
+        ...MOEX_TOP_SHARES.slice(0, 20).map((s) => s.ticker),
+      ])
+    );
+    console.info(`⏳ Warming up historical candles for ${priorityTickers.length} top priority blue chips...`);
+
+    const now = new Date();
+    const from5m = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const from15m = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+    const from1h = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+    const from4h = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000);
+    const from1d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const fetchCandlesForTicker = async (ticker: string, forceFresh = false): Promise<boolean> => {
+      const inst = this.sharedState.getInstrument(ticker);
+      if (!inst) return false;
+
+      // Skip remote fetch if already loaded from local cache and fresh
+      if (!forceFresh) {
+        const c5 = this.sharedState.getCandles(ticker, '5m');
+        const c1d = this.sharedState.getCandles(ticker, '1d');
+        if (c5.length >= 15 && c1d.length >= 15) {
+          const last5m = c5[c5.length - 1];
+          const last1d = c1d[c1d.length - 1];
+          const todayDateStr = new Date().toISOString().slice(0, 10);
+          const isToday1d = last1d && new Date(last1d.time).toISOString().slice(0, 10) === todayDateStr;
+          const isRecent5m = last5m && (Date.now() - last5m.time < 30 * 60 * 1000);
+
+          if (isToday1d && isRecent5m) {
+            return true;
+          }
+        }
+      }
+
+      try {
+        const [c5m, c15m, c1h, c4h, c1d] = await Promise.all([
+          api.marketdata.getCandles({
+            instrumentId: inst.figi,
+            from: from5m,
+            to: now,
+            interval: CandleInterval.CANDLE_INTERVAL_5_MIN,
+          }),
+          api.marketdata.getCandles({
+            instrumentId: inst.figi,
+            from: from15m,
+            to: now,
+            interval: CandleInterval.CANDLE_INTERVAL_15_MIN,
+          }),
+          api.marketdata.getCandles({
+            instrumentId: inst.figi,
+            from: from1h,
+            to: now,
+            interval: CandleInterval.CANDLE_INTERVAL_HOUR,
+          }),
+          api.marketdata.getCandles({
+            instrumentId: inst.figi,
+            from: from4h,
+            to: now,
+            interval: CandleInterval.CANDLE_INTERVAL_4_HOUR,
+          }),
+          api.marketdata.getCandles({
+            instrumentId: inst.figi,
+            from: from1d,
+            to: now,
+            interval: CandleInterval.CANDLE_INTERVAL_DAY,
+          }),
+        ]);
+
+        const mapCandle = (c: any, tf: string): Candle => ({
+          figi: inst.figi,
+          ticker: inst.ticker,
+          timeframe: tf as any,
+          time: c.time ? new Date(c.time).getTime() : Date.now(),
+          open: Helpers.toNumber(c.open) || 0,
+          high: Helpers.toNumber(c.high) || 0,
+          low: Helpers.toNumber(c.low) || 0,
+          close: Helpers.toNumber(c.close) || 0,
+          volume: c.volume || 0,
+          isComplete: c.isComplete ?? true,
+        });
+
+        if (c5m.candles && c5m.candles.length > 0) {
+          this.sharedState.setCandles(
+            inst.ticker,
+            '5m',
+            c5m.candles.map((c) => mapCandle(c, '5m'))
+          );
+        }
+
+        if (c15m.candles && c15m.candles.length > 0) {
+          this.sharedState.setCandles(
+            inst.ticker,
+            '15m',
+            c15m.candles.map((c) => mapCandle(c, '15m'))
+          );
+        }
+
+        if (c1h.candles && c1h.candles.length > 0) {
+          this.sharedState.setCandles(
+            inst.ticker,
+            '1h',
+            c1h.candles.map((c) => mapCandle(c, '1h'))
+          );
+        }
+
+        if (c4h.candles && c4h.candles.length > 0) {
+          this.sharedState.setCandles(
+            inst.ticker,
+            '4h',
+            c4h.candles.map((c) => mapCandle(c, '4h'))
+          );
+        }
+
+        if (c1d.candles && c1d.candles.length > 0) {
+          this.sharedState.setCandles(
+            inst.ticker,
+            '1d',
+            c1d.candles.map((c) => mapCandle(c, '1d'))
+          );
+        }
+
+        return true;
+      } catch (err: any) {
+        const msg = err.message || String(err);
+        if (msg.includes('RESOURCE_EXHAUSTED')) {
+          console.warn(`⏳ Rate limit reached on ${ticker}, cooling down...`);
+          await new Promise((r) => setTimeout(r, 10000));
+        } else {
+          console.warn(`⚠️ [Warmup] Could not load history for ${ticker}:`, msg);
+        }
+        return false;
+      }
+    };
+
+    // 1. Parallel warmup of priority blue chips (always fetch fresh candles)
+    const priorityQueue = [...priorityTickers];
+    let priorityWarmed = 0;
+    const priorityWorker = async () => {
+      while (priorityQueue.length > 0) {
+        const ticker = priorityQueue.shift();
+        if (ticker) {
+          const ok = await fetchCandlesForTicker(ticker, true);
+          if (ok) priorityWarmed++;
+          await new Promise((r) => setTimeout(r, 100));
+        }
+      }
+    };
+
+    await Promise.all([
+      priorityWorker(),
+      priorityWorker(),
+      priorityWorker(),
+    ]);
+
+    console.info(`✅ Priority warmup complete: pre-calculated RSI & Stoch for ${priorityWarmed} instruments.`);
+    await this.saveCandlesCache();
+
+    // 2. Background warmup for all remaining MOEX instruments (paced single worker)
+    const allInstruments = this.sharedState.getAllInstruments();
+    const remainingTickers = allInstruments
+      .map((i) => i.ticker)
+      .filter((t) => !priorityTickers.includes(t));
+
+    if (remainingTickers.length > 0) {
+      console.info(`🔄 Starting background candle warmup for ${remainingTickers.length} secondary instruments...`);
+      const backgroundQueue = [...remainingTickers];
+      const backgroundWorker = async () => {
+        while (backgroundQueue.length > 0) {
+          const ticker = backgroundQueue.shift();
+          if (ticker) {
+            await fetchCandlesForTicker(ticker);
+            await new Promise((r) => setTimeout(r, 350));
+          }
+        }
+        console.info('🎉 Full exchange background warmup complete for all MOEX instruments!');
+        await this.saveCandlesCache();
+      };
+      backgroundWorker().catch((err) => {
+        console.warn('⚠️ Background warmup error:', err.message);
+      });
+    }
+  }
+
+  private startPriceRefreshTimer(): void {
+    setInterval(async () => {
+      if (this.connectionState !== 'CONNECTED' || !this.api) return;
+      try {
+        const allInst = this.sharedState.getAllInstruments();
+        const figis = allInst.map((i) => i.figi);
+        const [lastPricesResp, closeResp] = await Promise.all([
+          this.api.marketdata.getLastPrices({
+            figi: figis,
+            instrumentId: figis,
+            lastPriceType: LastPriceType.LAST_PRICE_EXCHANGE ?? 1,
+          }),
+          this.api.marketdata.getClosePrices({
+            instruments: figis.map((f) => ({ instrumentId: f })),
+          }),
+        ]);
+
+        if (closeResp.closePrices) {
+          for (const cp of closeResp.closePrices) {
+            const price = Helpers.toNumber(cp.price);
+            if (price && price > 0) {
+              this.sharedState.setClosePrice(cp.figi, price);
+            }
+          }
+        }
+
+        if (lastPricesResp.lastPrices) {
+          for (const lp of lastPricesResp.lastPrices) {
+            const price = Helpers.toNumber(lp.price);
+            if (price && price > 0) {
+              this.sharedState.setLastPrice(lp.figi, price);
+            }
+          }
+        }
+      } catch {
+        // silent on periodic background refresh errors
+      }
+    }, 20000);
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return;
+
+    this.reconnectAttempt++;
+    const delaySec = Math.min(Math.pow(2, this.reconnectAttempt - 1), 30);
+    const delayMs = delaySec * 1000;
+
+    this.eventBus.emit('stream:reconnecting', {
+      attempt: this.reconnectAttempt,
+      delayMs,
+    });
+
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null;
+      await this.connectGrpc();
+    }, delayMs);
+  }
+
+  private async safeSubscribe(
+    promise: Promise<() => Promise<void>>,
+    timeoutMs = 2500,
+    label = 'subscription'
+  ): Promise<void> {
+    let timer: NodeJS.Timeout | null = null;
+    const timeoutPromise = new Promise<null>((resolve) => {
+      timer = setTimeout(() => {
+        resolve(null);
+      }, timeoutMs);
+    });
+
+    try {
+      const unwatch = await Promise.race([promise, timeoutPromise]);
+      if (unwatch) {
+        this.unsubscribeHandlers.push(unwatch);
+      }
+    } catch (err: any) {
+      console.warn(`⚠️ [StreamManager] ${label} warning:`, err.message || err);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  private async applySubscriptions(): Promise<void> {
+    if (!this.api) return;
+
+    for (const unwatch of this.unsubscribeHandlers) {
+      try {
+        await unwatch();
+      } catch {
+        // ignore
+      }
+    }
+    this.unsubscribeHandlers = [];
+
+    const instrumentsToSubscribe: { figi: string; ticker: string }[] = [];
+    for (const ticker of this.subscribedTickers) {
+      const inst = this.sharedState.getInstrument(ticker);
+      if (inst) {
+        instrumentsToSubscribe.push({ figi: inst.figi, ticker: inst.ticker });
+      }
+    }
+
+    if (instrumentsToSubscribe.length === 0) return;
+
+    // Use verified top shares for OrderBooks and Trades to prevent invalid FIGI subscription errors
+    const topInstruments = MOEX_TOP_SHARES.slice(0, 40);
+
+    // 1. Subscribe Candles (1M)
+    const candlesReq = {
+      subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+      instruments: instrumentsToSubscribe.map((i) => ({
+        figi: i.figi,
+        instrumentId: i.figi,
+        interval: SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE,
+      })),
+      waitingClose: false,
+    };
+
+    await this.safeSubscribe(
+      this.api.stream.market.candles(candlesReq, (rawCandle) =>
+        this.handleRawCandle(rawCandle)
+      ),
+      2500,
+      'Candles'
+    );
+
+    // 2. Subscribe OrderBooks (depth 20)
+    const orderBookReq = {
+      subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+      instruments: topInstruments.map((i) => ({
+        figi: i.figi,
+        instrumentId: i.figi,
+        depth: 20,
+        orderBookType: 0,
+      })),
+    };
+
+    await this.safeSubscribe(
+      this.api.stream.market.orderBook(orderBookReq, (rawOrderBook) =>
+        this.handleRawOrderBook(rawOrderBook)
+      ),
+      2500,
+      'OrderBooks'
+    );
+
+    // 3. Subscribe All Trades
+    const tradesReq = {
+      subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+      instruments: topInstruments.map((i) => ({
+        figi: i.figi,
+        instrumentId: i.figi,
+      })),
+      tradeSource: TradeSourceType.TRADE_SOURCE_ALL,
+      withOpenInterest: false,
+    };
+
+    await this.safeSubscribe(
+      this.api.stream.market.trades(tradesReq, (rawTrade) =>
+        this.handleRawTrade(rawTrade)
+      ),
+      2500,
+      'Trades'
+    );
+
+    this.connectionState = 'CONNECTED';
+  }
+
+  // --- Normalization ---
+
+  private handleRawCandle(raw: any): void {
+    this.recordPacket();
+    this.candleCounter++;
+
+    const inst = this.sharedState.getInstrument(raw.figi);
+    const ticker = raw.ticker || inst?.ticker || raw.figi;
+
+    const candle: Candle = {
+      figi: raw.figi,
+      ticker,
+      timeframe: '1m',
+      time: raw.time ? new Date(raw.time).getTime() : Date.now(),
+      open: Helpers.toNumber(raw.open) || 0,
+      high: Helpers.toNumber(raw.high) || 0,
+      low: Helpers.toNumber(raw.low) || 0,
+      close: Helpers.toNumber(raw.close) || 0,
+      volume: raw.volume || 0,
+      isComplete: false,
+    };
+
+    if (candle.close > 0) {
+      this.sharedState.setLastPrice(candle.figi, candle.close);
+    }
+
+    this.sharedState.updateCandle(candle);
+    this.eventBus.emit('market:candle_tick', candle);
+  }
+
+  private handleRawOrderBook(raw: any): void {
+    this.recordPacket();
+    this.orderBookCounter++;
+
+    const inst = this.sharedState.getInstrument(raw.figi);
+    const ticker = raw.ticker || inst?.ticker || raw.figi;
+
+    const bids: OrderBookLevel[] = (raw.bids || []).map((b: any) => ({
+      price: Helpers.toNumber(b.price) || 0,
+      quantity: b.quantity || 0,
+    }));
+
+    const asks: OrderBookLevel[] = (raw.asks || []).map((a: any) => ({
+      price: Helpers.toNumber(a.price) || 0,
+      quantity: a.quantity || 0,
+    }));
+
+    const bestBid = bids[0]?.price || 0;
+    const bestAsk = asks[0]?.price || 0;
+    const spread = bestAsk > 0 && bestBid > 0 ? Number((bestAsk - bestBid).toFixed(4)) : 0;
+
+    const orderBook: OrderBook = {
+      figi: raw.figi,
+      ticker,
+      depth: raw.depth || bids.length,
+      bids,
+      asks,
+      spread,
+      bestBid,
+      bestAsk,
+      timestamp: raw.time ? new Date(raw.time).getTime() : Date.now(),
+    };
+
+    this.sharedState.updateOrderBook(orderBook);
+    this.eventBus.emit('market:orderbook', orderBook);
+  }
+
+  private handleRawTrade(raw: any): void {
+    this.recordPacket();
+    this.tradeCounter++;
+
+    const inst = this.sharedState.getInstrument(raw.figi);
+    const ticker = raw.ticker || inst?.ticker || raw.figi;
+
+    let direction: TradeDirection = 'UNKNOWN';
+    if (raw.direction === 1) direction = 'BUY';
+    else if (raw.direction === 2) direction = 'SELL';
+
+    const trade: TradeEvent = {
+      figi: raw.figi,
+      ticker,
+      direction,
+      price: Helpers.toNumber(raw.price) || 0,
+      quantity: raw.quantity || 0,
+      timestamp: raw.time ? new Date(raw.time).getTime() : Date.now(),
+    };
+
+    if (trade.price > 0) {
+      this.sharedState.setLastPrice(trade.figi, trade.price);
+    }
+
+    this.sharedState.addTrade(trade);
+    this.eventBus.emit('market:trade', trade);
+  }
+
+  private recordPacket(): void {
+    this.packetCounter++;
+    this.totalPackets++;
+    this.lastPacketTimestamp = Date.now();
+  }
+
+  private startStatsTimer(): void {
+    this.statsIntervalTimer = setInterval(() => {
+      this.currentFps = this.packetCounter;
+      this.packetCounter = 0;
+
+      this.eventBus.emit('stream:stats', {
+        fps: this.currentFps,
+        candleCount: this.candleCounter,
+        tradeCount: this.tradeCounter,
+        orderBookCount: this.orderBookCounter,
+      });
+    }, 1000);
+  }
+
+  private startTickerBroadcastTimer(): void {
+    // Broadcast ready screener table deltas every 2500ms to WebSocket clients (smooth 2.5s cadence)
+    let tickCount = 0;
+    this.broadcastIntervalTimer = setInterval(() => {
+      tickCount++;
+      const deltas = this.sharedState.getDirtyStockItems();
+      if (deltas.length > 0) {
+        this.eventBus.emit('market:delta_update', deltas);
+      } else if (tickCount % 24 === 0) {
+        // Periodic full sync heartbeat every 60s
+        const all = this.sharedState.getAllStockItems();
+        if (all.length > 0) {
+          this.eventBus.emit('market:ticker_update', all);
+        }
+      }
+    }, 2500);
+  }
+
+  private getCacheFilePath(): string {
+    return path.join(process.cwd(), '.cache', 'candles-cache.json');
+  }
+
+  private async saveCandlesCache(): Promise<void> {
+    try {
+      const data = this.sharedState.exportCandlesSnapshot();
+      const dir = path.join(process.cwd(), '.cache');
+      await fs.promises.mkdir(dir, { recursive: true });
+      await fs.promises.writeFile(this.getCacheFilePath(), JSON.stringify(data), 'utf8');
+      console.info('💾 Saved candles cache to disk (.cache/candles-cache.json)');
+    } catch (e: any) {
+      console.warn('⚠️ Could not save candles cache:', e.message);
+    }
+  }
+
+  private async loadCandlesCache(): Promise<number> {
+    try {
+      const p = this.getCacheFilePath();
+      const raw = await fs.promises.readFile(p, 'utf8');
+      const data = JSON.parse(raw);
+      return this.sharedState.importCandlesSnapshot(data);
+    } catch {
+      return 0;
+    }
+  }
+
+  // --- Realistic Mock Stream for Development / Testing ---
+
+  private startMockStream(): void {
+    this.connectionState = 'MOCK_STREAM';
+    console.info('📡 Running in Mock Stream mode (generating synthetic MOEX ticks & candles)');
+    this.eventBus.emit('stream:connected', { timestamp: Date.now() });
+
+    // Seed mock prices for all known shares
+    const mockPrices: Record<string, number> = {};
+    for (const inst of MOEX_TOP_SHARES) {
+      mockPrices[inst.ticker] = Math.floor(Math.random() * 200) + 50;
+      this.sharedState.setClosePrice(inst.ticker, mockPrices[inst.ticker]);
+    }
+    mockPrices['SBER'] = 275.5;
+    mockPrices['GAZP'] = 134.2;
+    mockPrices['LKOH'] = 7180.0;
+    mockPrices['GMKN'] = 145.0;
+    mockPrices['ROSN'] = 540.0;
+
+    // Seed some initial candle history for realistic RSI/Stoch calculation
+    const now = Date.now();
+    for (const inst of MOEX_TOP_SHARES) {
+      const base = mockPrices[inst.ticker] || 100;
+      for (let i = 25; i >= 0; i--) {
+        const cTime = now - i * 5 * 60000;
+        const p = base + (Math.random() * 4 - 2);
+        this.sharedState.updateCandle({
+          figi: inst.figi,
+          ticker: inst.ticker,
+          timeframe: '5m',
+          time: Math.floor(cTime / 300000) * 300000,
+          open: p - 0.5,
+          high: p + 1.0,
+          low: p - 1.0,
+          close: p,
+          volume: Math.floor(Math.random() * 500) + 50,
+          isComplete: true,
+        });
+      }
+    }
+
+    this.mockIntervalTimer = setInterval(() => {
+      for (const ticker of this.subscribedTickers) {
+        const inst = this.sharedState.getInstrument(ticker) ?? {
+          figi: `MOCK_${ticker}`,
+          ticker,
+        };
+
+        const currentBase = mockPrices[ticker] || 100.0;
+        const delta = currentBase * (Math.random() * 0.006 - 0.003);
+        const newPrice = Number((currentBase + delta).toFixed(2));
+        mockPrices[ticker] = newPrice;
+
+        const timestamp = Date.now();
+        const minuteStart = Math.floor(timestamp / 60000) * 60000;
+
+        // 1. Generate Trade Event
+        const direction: TradeDirection = Math.random() > 0.5 ? 'BUY' : 'SELL';
+        const tradeQuantity = Math.floor(Math.random() * 50) + 1;
+        const trade: TradeEvent = {
+          figi: inst.figi,
+          ticker,
+          direction,
+          price: newPrice,
+          quantity: tradeQuantity,
+          timestamp,
+        };
+        this.sharedState.addTrade(trade);
+        this.eventBus.emit('market:trade', trade);
+        this.recordPacket();
+        this.tradeCounter++;
+
+        // 2. Generate 1M Candle Update
+        const existing1m = this.sharedState.getLatestCandle(ticker, '1m');
+        let candle: Candle;
+
+        if (existing1m && existing1m.time === minuteStart) {
+          candle = {
+            ...existing1m,
+            high: Math.max(existing1m.high, newPrice),
+            low: Math.min(existing1m.low, newPrice),
+            close: newPrice,
+            volume: existing1m.volume + tradeQuantity,
+            isComplete: false,
+          };
+        } else {
+          candle = {
+            figi: inst.figi,
+            ticker,
+            timeframe: '1m',
+            time: minuteStart,
+            open: newPrice,
+            high: newPrice,
+            low: newPrice,
+            close: newPrice,
+            volume: tradeQuantity,
+            isComplete: false,
+          };
+        }
+        this.sharedState.updateCandle(candle);
+        this.eventBus.emit('market:candle_tick', candle);
+        this.recordPacket();
+        this.candleCounter++;
+      }
+    }, 1000);
+  }
+}

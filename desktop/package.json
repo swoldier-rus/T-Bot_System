@@ -1,0 +1,25 @@
+{
+  "name": "t-invest-moex-screener-desktop",
+  "version": "1.0.0",
+  "description": "MOEX Live Screener Pro Desktop Terminal Application",
+  "main": "src/main/main.js",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "start": "electron .",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "t-bank",
+    "moex",
+    "screener",
+    "electron",
+    "trading"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "vite": "^6.0.7"
+  }
+}
