@@ -22,6 +22,7 @@ export interface EventMap {
   'instruments:updated': Instrument[];
   'module:toggled': { moduleId: string; enabled: boolean };
   'dashboard:log': any;
+  'system:indicator_params_updated': any;
 }
 
 export class EventBus {

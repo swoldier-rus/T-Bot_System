@@ -262,6 +262,25 @@ export function createRestApp(
     res.json(result);
   });
 
+  // GET /config/indicators
+  app.get('/config/indicators', (_req: Request, res: Response) => {
+    res.json({
+      status: 'ok',
+      params: sharedState.getDefaultParams(),
+    });
+  });
+
+  // POST /config/indicators
+  app.post('/config/indicators', (req: Request, res: Response) => {
+    const params = req.body || {};
+    sharedState.updateDefaultParams(params);
+    eventBus.emit('system:indicator_params_updated', sharedState.getDefaultParams());
+    res.json({
+      status: 'ok',
+      params: sharedState.getDefaultParams(),
+    });
+  });
+
   // POST /telegram/send - Relay endpoint: sends custom text or structured signal to Telegram on frontend command
   app.post('/telegram/send', async (req: Request, res: Response) => {
     const { text, signal, chatId, botToken } = req.body || {};
