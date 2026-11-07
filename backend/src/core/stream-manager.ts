@@ -60,6 +60,7 @@ export class StreamManager {
 
   // Set of subscribed tickers
   private readonly subscribedTickers = new Set<string>();
+  private currentSubscribed = new Set<string>();
 
   // Metrics tracking
   private packetCounter = 0;
@@ -70,17 +71,18 @@ export class StreamManager {
   private currentFps = 0;
   private lastPacketTimestamp = 0;
 
-  // Active unsubscribe callbacks from MarketStream
-  private unsubscribeHandlers: Array<() => Promise<void>> = [];
-
   constructor(
     private readonly eventBus: EventBus,
     private readonly sharedState: SharedState
   ) {
-    // Pre-populate known MOEX instruments
+    // Pre-populate known MOEX instruments in shared state
     for (const inst of MOEX_TOP_SHARES) {
       this.sharedState.setInstrument(inst);
-      this.subscribedTickers.add(inst.ticker);
+    }
+    // Only subscribe to default tickers from env on startup
+    for (const ticker of env.DEFAULT_TICKERS) {
+      this.subscribedTickers.add(ticker.toUpperCase());
+      this.currentSubscribed.add(ticker.toUpperCase());
     }
   }
 
@@ -100,7 +102,7 @@ export class StreamManager {
   }
 
   public getSubscribedTickers(): string[] {
-    return Array.from(this.subscribedTickers);
+    return Array.from(this.currentSubscribed);
   }
 
   /**
@@ -147,14 +149,12 @@ export class StreamManager {
     }
 
     // Unsubscribe all active gRPC subscriptions
-    for (const unwatch of this.unsubscribeHandlers) {
-      try {
-        await unwatch();
-      } catch {
-        // ignore on shutdown
-      }
+    if (this.currentSubscribed.size > 0 && this.connectionState === 'CONNECTED') {
+      const insts = this.getInstrumentsForTickers(this.currentSubscribed);
+      this.sendGrpcUnsubscribe(insts);
+      this.currentSubscribed.clear();
+      this.subscribedTickers.clear();
     }
-    this.unsubscribeHandlers = [];
 
     if (this.api?.stream?.market) {
       try {
@@ -169,42 +169,124 @@ export class StreamManager {
   }
 
   public async subscribe(tickers: string[]): Promise<void> {
+    const updated = new Set(this.currentSubscribed.size > 0 ? this.currentSubscribed : this.subscribedTickers);
     for (const t of tickers) {
-      this.subscribedTickers.add(t.toUpperCase());
+      updated.add(t.toUpperCase());
     }
-
-    if (this.connectionState === 'CONNECTED' && this.api) {
-      await this.applySubscriptions();
-    }
+    await this.syncActiveUniverse(updated);
   }
 
   public async unsubscribe(tickers: string[]): Promise<void> {
+    const updated = new Set(this.currentSubscribed.size > 0 ? this.currentSubscribed : this.subscribedTickers);
     for (const t of tickers) {
-      this.subscribedTickers.delete(t.toUpperCase());
+      updated.delete(t.toUpperCase());
     }
-
-    if (this.connectionState === 'CONNECTED' && this.api) {
-      await this.applySubscriptions();
-    }
+    await this.syncActiveUniverse(updated);
   }
 
   public async syncActiveUniverse(targetTickers: Set<string> | null): Promise<void> {
+    // 1. Determine target ticker set
+    let targetSet: Set<string>;
     if (targetTickers === null) {
+      // Client explicitly requested all MOEX instruments
       const all = this.sharedState.getAllInstruments();
-      for (const i of all) {
-        this.subscribedTickers.add(i.ticker);
-      }
-      console.info(`🌐 Active universe: ALL MOEX instruments (${this.subscribedTickers.size})`);
+      targetSet = new Set(all.map((i) => i.ticker.toUpperCase()));
+      console.info(`🌐 Active universe: ALL MOEX instruments (${targetSet.size})`);
+    } else if (targetTickers.size === 0) {
+      // Fallback: no clients connected, revert to DEFAULT_TICKERS
+      targetSet = new Set(env.DEFAULT_TICKERS.map((t) => t.toUpperCase()));
+      console.info(`💤 No active clients, reverting to DEFAULT_TICKERS (${targetSet.size})`);
     } else {
-      this.subscribedTickers.clear();
-      for (const t of targetTickers) {
-        this.subscribedTickers.add(t.toUpperCase());
-      }
-      console.info(`🎯 Active universe updated: ${this.subscribedTickers.size} instruments (${Array.from(this.subscribedTickers).slice(0, 8).join(', ')}${this.subscribedTickers.size > 8 ? '...' : ''})`);
+      targetSet = new Set(Array.from(targetTickers).map((t) => t.toUpperCase()));
+      console.info(
+        `🎯 Active universe requested: ${targetSet.size} instruments (${Array.from(targetSet).slice(0, 8).join(', ')}${targetSet.size > 8 ? '...' : ''})`
+      );
     }
 
+    // 2. Differential delta calculation
+    // toSubscribe = targetSet \ currentSubscribed
+    const toSubscribe = new Set<string>();
+    for (const t of targetSet) {
+      if (!this.currentSubscribed.has(t)) {
+        toSubscribe.add(t);
+      }
+    }
+
+    // toUnsubscribe = currentSubscribed \ targetSet
+    const toUnsubscribe = new Set<string>();
+    for (const t of this.currentSubscribed) {
+      if (!targetSet.has(t)) {
+        toUnsubscribe.add(t);
+      }
+    }
+
+    if (toSubscribe.size === 0 && toUnsubscribe.size === 0) {
+      return; // Delta is empty
+    }
+
+    console.info(
+      `📊 Delta Sync: +${toSubscribe.size} to subscribe, -${toUnsubscribe.size} to unsubscribe. Current active: ${this.currentSubscribed.size} -> Target: ${targetSet.size}`
+    );
+
+    // 3. Handle MOCK_STREAM mode
+    if (this.connectionState === 'MOCK_STREAM') {
+      for (const t of toUnsubscribe) {
+        this.subscribedTickers.delete(t);
+        this.currentSubscribed.delete(t);
+      }
+      for (const t of toSubscribe) {
+        this.subscribedTickers.add(t);
+        this.currentSubscribed.add(t);
+      }
+      return;
+    }
+
+    // 4. Handle gRPC live mode
     if (this.connectionState === 'CONNECTED' && this.api) {
-      await this.applySubscriptions();
+      // Unsubscribe delta
+      if (toUnsubscribe.size > 0) {
+        const instrumentsToUnsub = this.getInstrumentsForTickers(toUnsubscribe);
+        if (instrumentsToUnsub.length > 0) {
+          this.sendGrpcUnsubscribe(instrumentsToUnsub);
+          for (const t of toUnsubscribe) {
+            this.currentSubscribed.delete(t);
+            this.subscribedTickers.delete(t);
+          }
+          console.info(
+            `🔻 [gRPC Unsubscribe]: -${instrumentsToUnsub.length} tickers: ${instrumentsToUnsub.map((i) => i.ticker).slice(0, 10).join(', ')}${instrumentsToUnsub.length > 10 ? '...' : ''}`
+          );
+        }
+      }
+
+      // Subscribe delta
+      if (toSubscribe.size > 0) {
+        const instrumentsToSub = this.getInstrumentsForTickers(toSubscribe);
+        if (instrumentsToSub.length > 0) {
+          this.sendGrpcSubscribe(instrumentsToSub);
+          for (const t of toSubscribe) {
+            this.currentSubscribed.add(t);
+            this.subscribedTickers.add(t);
+          }
+          console.info(
+            `🔺 [gRPC Subscribe]: +${instrumentsToSub.length} tickers: ${instrumentsToSub.map((i) => i.ticker).slice(0, 10).join(', ')}${instrumentsToSub.length > 10 ? '...' : ''}`
+          );
+
+          // Pointwise fetch lastPrices, closePrices and warmup candles for newly added tickers
+          this.warmupNewTickers(instrumentsToSub).catch((err) => {
+            console.warn('⚠️ Pointwise warmup error:', err.message);
+          });
+        }
+      }
+    } else {
+      // If not connected yet, update sets so upon connection they are subscribed
+      for (const t of toUnsubscribe) {
+        this.subscribedTickers.delete(t);
+        this.currentSubscribed.delete(t);
+      }
+      for (const t of toSubscribe) {
+        this.subscribedTickers.add(t);
+        this.currentSubscribed.add(t);
+      }
     }
   }
 
@@ -251,7 +333,6 @@ export class StreamManager {
               logoColor,
             };
             this.sharedState.setInstrument(inst);
-            this.subscribedTickers.add(s.ticker);
           }
           console.info(`📋 Loaded ${tqbrShares.length} MOEX TQBR instruments from T-Bank API`);
         }
@@ -306,6 +387,12 @@ export class StreamManager {
         this.reconnectAttempt = 0;
         this.connectionState = 'CONNECTED';
         this.eventBus.emit('stream:connected', { timestamp: Date.now() });
+
+        // If reconnecting, re-subscribe whatever tickers are currently active
+        if (this.currentSubscribed.size > 0) {
+          const instruments = this.getInstrumentsForTickers(this.currentSubscribed);
+          this.sendGrpcSubscribe(instruments);
+        }
       });
 
       api.stream.market.on('close', (error?: Error) => {
@@ -321,13 +408,46 @@ export class StreamManager {
         console.error('⚠️ [gRPC Stream Error]:', error.message);
       });
 
+      // Stream market data router
+      api.stream.market.on('data', (d: any) => {
+        if (d.candle) {
+          this.handleRawCandle(d.candle);
+        }
+        if (d.orderbook) {
+          this.handleRawOrderBook(d.orderbook);
+        }
+        if (d.trade) {
+          this.handleRawTrade(d.trade);
+        }
+      });
+
       // Warmup historical candles for immediate RSI & Stochastic calculation
       await this.warmupHistoricalData(api);
 
       // Start periodic refresh of last & close prices for all instruments
       this.startPriceRefreshTimer();
 
-      await this.applySubscriptions();
+      // Ensure bidirectional stream is open
+      (api.stream.market as any).ensureConnected();
+
+      // Perform initial subscription for target tickers
+      const initialTickers = this.subscribedTickers.size > 0
+        ? this.subscribedTickers
+        : new Set(env.DEFAULT_TICKERS);
+      const instrumentsToSub = this.getInstrumentsForTickers(initialTickers);
+      if (instrumentsToSub.length > 0) {
+        this.sendGrpcSubscribe(instrumentsToSub);
+        this.currentSubscribed = new Set(instrumentsToSub.map((i) => i.ticker));
+        this.subscribedTickers.clear();
+        for (const t of this.currentSubscribed) {
+          this.subscribedTickers.add(t);
+        }
+        console.info(
+          `⚡ [gRPC Stream Initialized]: Subscribed to ${this.currentSubscribed.size} instruments: ${Array.from(this.currentSubscribed).join(', ')}`
+        );
+      }
+
+      this.connectionState = 'CONNECTED';
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       console.error('❌ Failed to establish gRPC stream connection:', errorMsg);
@@ -344,147 +464,18 @@ export class StreamManager {
     const priorityTickers = Array.from(
       new Set([
         ...env.DEFAULT_TICKERS,
-        ...MOEX_TOP_SHARES.slice(0, 20).map((s) => s.ticker),
+        ...MOEX_TOP_SHARES.slice(0, 10).map((s) => s.ticker),
       ])
     );
     console.info(`⏳ Warming up historical candles for ${priorityTickers.length} top priority blue chips...`);
 
-    const now = new Date();
-    const from5m = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-    const from15m = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
-    const from1h = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000);
-    const from4h = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    const from1d = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-
-    const fetchCandlesForTicker = async (ticker: string, forceFresh = false): Promise<boolean> => {
-      const inst = this.sharedState.getInstrument(ticker);
-      if (!inst) return false;
-
-      // Skip remote fetch if already loaded from local cache and fresh with sufficient history
-      if (!forceFresh) {
-        const c5 = this.sharedState.getCandles(ticker, '5m');
-        const c1d = this.sharedState.getCandles(ticker, '1d');
-        if (c5.length >= 250 && c1d.length >= 15) {
-          const last5m = c5[c5.length - 1];
-          const last1d = c1d[c1d.length - 1];
-          const todayDateStr = new Date().toISOString().slice(0, 10);
-          const isToday1d = last1d && new Date(last1d.time).toISOString().slice(0, 10) === todayDateStr;
-          const isRecent5m = last5m && (Date.now() - last5m.time < 30 * 60 * 1000);
-
-          if (isToday1d && isRecent5m) {
-            return true;
-          }
-        }
-      }
-
-      try {
-        const [c5m, c15m, c1h, c4h, c1d] = await Promise.all([
-          api.marketdata.getCandles({
-            instrumentId: inst.figi,
-            from: from5m,
-            to: now,
-            interval: CandleInterval.CANDLE_INTERVAL_5_MIN,
-          }),
-          api.marketdata.getCandles({
-            instrumentId: inst.figi,
-            from: from15m,
-            to: now,
-            interval: CandleInterval.CANDLE_INTERVAL_15_MIN,
-          }),
-          api.marketdata.getCandles({
-            instrumentId: inst.figi,
-            from: from1h,
-            to: now,
-            interval: CandleInterval.CANDLE_INTERVAL_HOUR,
-          }),
-          api.marketdata.getCandles({
-            instrumentId: inst.figi,
-            from: from4h,
-            to: now,
-            interval: CandleInterval.CANDLE_INTERVAL_4_HOUR,
-          }),
-          api.marketdata.getCandles({
-            instrumentId: inst.figi,
-            from: from1d,
-            to: now,
-            interval: CandleInterval.CANDLE_INTERVAL_DAY,
-          }),
-        ]);
-
-        const mapCandle = (c: any, tf: string): Candle => ({
-          figi: inst.figi,
-          ticker: inst.ticker,
-          timeframe: tf as any,
-          time: c.time ? new Date(c.time).getTime() : Date.now(),
-          open: Helpers.toNumber(c.open) || 0,
-          high: Helpers.toNumber(c.high) || 0,
-          low: Helpers.toNumber(c.low) || 0,
-          close: Helpers.toNumber(c.close) || 0,
-          volume: c.volume || 0,
-          isComplete: c.isComplete ?? true,
-        });
-
-        if (c5m.candles && c5m.candles.length > 0) {
-          this.sharedState.setCandles(
-            inst.ticker,
-            '5m',
-            c5m.candles.map((c) => mapCandle(c, '5m'))
-          );
-        }
-
-        if (c15m.candles && c15m.candles.length > 0) {
-          this.sharedState.setCandles(
-            inst.ticker,
-            '15m',
-            c15m.candles.map((c) => mapCandle(c, '15m'))
-          );
-        }
-
-        if (c1h.candles && c1h.candles.length > 0) {
-          this.sharedState.setCandles(
-            inst.ticker,
-            '1h',
-            c1h.candles.map((c) => mapCandle(c, '1h'))
-          );
-        }
-
-        if (c4h.candles && c4h.candles.length > 0) {
-          this.sharedState.setCandles(
-            inst.ticker,
-            '4h',
-            c4h.candles.map((c) => mapCandle(c, '4h'))
-          );
-        }
-
-        if (c1d.candles && c1d.candles.length > 0) {
-          this.sharedState.setCandles(
-            inst.ticker,
-            '1d',
-            c1d.candles.map((c) => mapCandle(c, '1d'))
-          );
-        }
-
-        return true;
-      } catch (err: any) {
-        const msg = err.message || String(err);
-        if (msg.includes('RESOURCE_EXHAUSTED')) {
-          console.warn(`⏳ Rate limit reached on ${ticker}, cooling down...`);
-          await new Promise((r) => setTimeout(r, 10000));
-        } else {
-          console.warn(`⚠️ [Warmup] Could not load history for ${ticker}:`, msg);
-        }
-        return false;
-      }
-    };
-
-    // 1. Parallel warmup of priority blue chips (always fetch fresh candles)
     const priorityQueue = [...priorityTickers];
     let priorityWarmed = 0;
     const priorityWorker = async () => {
       while (priorityQueue.length > 0) {
         const ticker = priorityQueue.shift();
         if (ticker) {
-          const ok = await fetchCandlesForTicker(ticker, true);
+          const ok = await this.fetchCandlesForTicker(ticker, true);
           if (ok) priorityWarmed++;
           await new Promise((r) => setTimeout(r, 100));
         }
@@ -499,31 +490,183 @@ export class StreamManager {
 
     console.info(`✅ Priority warmup complete: pre-calculated RSI & Stoch for ${priorityWarmed} instruments.`);
     await this.saveCandlesCache();
+  }
 
-    // 2. Background warmup for all remaining MOEX instruments (paced single worker)
-    const allInstruments = this.sharedState.getAllInstruments();
-    const remainingTickers = allInstruments
-      .map((i) => i.ticker)
-      .filter((t) => !priorityTickers.includes(t));
+  private async fetchCandlesForTicker(ticker: string, forceFresh = false): Promise<boolean> {
+    if (!this.api) return false;
+    const inst = this.sharedState.getInstrument(ticker);
+    if (!inst) return false;
 
-    if (remainingTickers.length > 0) {
-      console.info(`🔄 Starting background candle warmup for ${remainingTickers.length} secondary instruments...`);
-      const backgroundQueue = [...remainingTickers];
-      const backgroundWorker = async () => {
-        while (backgroundQueue.length > 0) {
-          const ticker = backgroundQueue.shift();
-          if (ticker) {
-            await fetchCandlesForTicker(ticker);
-            await new Promise((r) => setTimeout(r, 350));
+    // Skip remote fetch if already loaded from local cache and fresh with sufficient history
+    if (!forceFresh) {
+      const c5 = this.sharedState.getCandles(ticker, '5m');
+      const c1d = this.sharedState.getCandles(ticker, '1d');
+      if (c5.length >= 250 && c1d.length >= 15) {
+        const last5m = c5[c5.length - 1];
+        const last1d = c1d[c1d.length - 1];
+        const todayDateStr = new Date().toISOString().slice(0, 10);
+        const isToday1d = last1d && new Date(last1d.time).toISOString().slice(0, 10) === todayDateStr;
+        const isRecent5m = last5m && (Date.now() - last5m.time < 30 * 60 * 1000);
+
+        if (isToday1d && isRecent5m) {
+          return true;
+        }
+      }
+    }
+
+    const now = new Date();
+    const from5m = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const from15m = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+    const from1h = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000);
+    const from4h = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const from1d = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+
+    try {
+      const [c5m, c15m, c1h, c4h, c1d] = await Promise.all([
+        this.api.marketdata.getCandles({
+          instrumentId: inst.figi,
+          from: from5m,
+          to: now,
+          interval: CandleInterval.CANDLE_INTERVAL_5_MIN,
+        }),
+        this.api.marketdata.getCandles({
+          instrumentId: inst.figi,
+          from: from15m,
+          to: now,
+          interval: CandleInterval.CANDLE_INTERVAL_15_MIN,
+        }),
+        this.api.marketdata.getCandles({
+          instrumentId: inst.figi,
+          from: from1h,
+          to: now,
+          interval: CandleInterval.CANDLE_INTERVAL_HOUR,
+        }),
+        this.api.marketdata.getCandles({
+          instrumentId: inst.figi,
+          from: from4h,
+          to: now,
+          interval: CandleInterval.CANDLE_INTERVAL_4_HOUR,
+        }),
+        this.api.marketdata.getCandles({
+          instrumentId: inst.figi,
+          from: from1d,
+          to: now,
+          interval: CandleInterval.CANDLE_INTERVAL_DAY,
+        }),
+      ]);
+
+      const mapCandle = (c: any, tf: string): Candle => ({
+        figi: inst.figi,
+        ticker: inst.ticker,
+        timeframe: tf as any,
+        time: c.time ? new Date(c.time).getTime() : Date.now(),
+        open: Helpers.toNumber(c.open) || 0,
+        high: Helpers.toNumber(c.high) || 0,
+        low: Helpers.toNumber(c.low) || 0,
+        close: Helpers.toNumber(c.close) || 0,
+        volume: c.volume || 0,
+        isComplete: c.isComplete ?? true,
+      });
+
+      if (c5m.candles && c5m.candles.length > 0) {
+        this.sharedState.setCandles(
+          inst.ticker,
+          '5m',
+          c5m.candles.map((c) => mapCandle(c, '5m'))
+        );
+      }
+
+      if (c15m.candles && c15m.candles.length > 0) {
+        this.sharedState.setCandles(
+          inst.ticker,
+          '15m',
+          c15m.candles.map((c) => mapCandle(c, '15m'))
+        );
+      }
+
+      if (c1h.candles && c1h.candles.length > 0) {
+        this.sharedState.setCandles(
+          inst.ticker,
+          '1h',
+          c1h.candles.map((c) => mapCandle(c, '1h'))
+        );
+      }
+
+      if (c4h.candles && c4h.candles.length > 0) {
+        this.sharedState.setCandles(
+          inst.ticker,
+          '4h',
+          c4h.candles.map((c) => mapCandle(c, '4h'))
+        );
+      }
+
+      if (c1d.candles && c1d.candles.length > 0) {
+        this.sharedState.setCandles(
+          inst.ticker,
+          '1d',
+          c1d.candles.map((c) => mapCandle(c, '1d'))
+        );
+      }
+
+      return true;
+    } catch (err: any) {
+      const msg = err.message || String(err);
+      if (msg.includes('RESOURCE_EXHAUSTED')) {
+        console.warn(`⏳ Rate limit reached on ${ticker}, cooling down...`);
+        await new Promise((r) => setTimeout(r, 10000));
+      } else {
+        console.warn(`⚠️ [Warmup] Could not load history for ${ticker}:`, msg);
+      }
+      return false;
+    }
+  }
+
+  private async warmupNewTickers(instruments: { figi: string; ticker: string }[]): Promise<void> {
+    if (!this.api || instruments.length === 0) return;
+
+    const figis = instruments.map((i) => i.figi);
+
+    // 1. Fetch spot prices (getLastPrices and getClosePrices)
+    try {
+      const [lastPricesResp, closeResp] = await Promise.all([
+        this.api.marketdata.getLastPrices({
+          figi: figis,
+          instrumentId: figis,
+          lastPriceType: LastPriceType.LAST_PRICE_EXCHANGE ?? 1,
+        }),
+        this.api.marketdata.getClosePrices({
+          instruments: figis.map((f) => ({ instrumentId: f })),
+        }),
+      ]);
+
+      if (closeResp.closePrices) {
+        for (const cp of closeResp.closePrices) {
+          const price = Helpers.toNumber(cp.price);
+          if (price && price > 0) {
+            this.sharedState.setClosePrice(cp.figi, price);
           }
         }
-        console.info('🎉 Full exchange background warmup complete for all MOEX instruments!');
-        await this.saveCandlesCache();
-      };
-      backgroundWorker().catch((err) => {
-        console.warn('⚠️ Background warmup error:', err.message);
-      });
+      }
+
+      if (lastPricesResp.lastPrices) {
+        for (const lp of lastPricesResp.lastPrices) {
+          const price = Helpers.toNumber(lp.price);
+          if (price && price > 0) {
+            this.sharedState.setLastPrice(lp.figi, price);
+          }
+        }
+      }
+    } catch (e: any) {
+      console.warn('⚠️ [Warmup] Failed to fetch spot prices for new tickers:', e.message);
     }
+
+    // 2. Warm up historical candles if needed
+    for (const inst of instruments) {
+      await this.fetchCandlesForTicker(inst.ticker, false);
+      await new Promise((r) => setTimeout(r, 150));
+    }
+
+    await this.saveCandlesCache();
   }
 
   private startPriceRefreshTimer(): void {
@@ -584,113 +727,103 @@ export class StreamManager {
     }, delayMs);
   }
 
-  private async safeSubscribe(
-    promise: Promise<() => Promise<void>>,
-    timeoutMs = 2500,
-    label = 'subscription'
-  ): Promise<void> {
-    let timer: NodeJS.Timeout | null = null;
-    const timeoutPromise = new Promise<null>((resolve) => {
-      timer = setTimeout(() => {
-        resolve(null);
-      }, timeoutMs);
-    });
-
-    try {
-      const unwatch = await Promise.race([promise, timeoutPromise]);
-      if (unwatch) {
-        this.unsubscribeHandlers.push(unwatch);
+  private getInstrumentsForTickers(tickers: Set<string>): { figi: string; ticker: string }[] {
+    const list: { figi: string; ticker: string }[] = [];
+    for (const ticker of tickers) {
+      const inst = this.sharedState.getInstrument(ticker);
+      if (inst && inst.figi) {
+        list.push({ figi: inst.figi, ticker: inst.ticker });
       }
-    } catch (err: any) {
-      console.warn(`⚠️ [StreamManager] ${label} warning:`, err.message || err);
-    } finally {
-      if (timer) clearTimeout(timer);
     }
+    return list;
   }
 
-  private async applySubscriptions(): Promise<void> {
-    if (!this.api) return;
-
-    for (const unwatch of this.unsubscribeHandlers) {
-      try {
-        await unwatch();
-      } catch {
-        // ignore
-      }
-    }
-    this.unsubscribeHandlers = [];
-
-    const instrumentsToSubscribe: { figi: string; ticker: string }[] = [];
-    for (const ticker of this.subscribedTickers) {
-      const inst = this.sharedState.getInstrument(ticker);
-      if (inst) {
-        instrumentsToSubscribe.push({ figi: inst.figi, ticker: inst.ticker });
-      }
-    }
-
-    if (instrumentsToSubscribe.length === 0) return;
-
-    // Use verified top shares for OrderBooks and Trades to prevent invalid FIGI subscription errors
-    const topInstruments = MOEX_TOP_SHARES.slice(0, 40);
+  private sendGrpcSubscribe(instruments: { figi: string; ticker: string }[]): void {
+    if (!this.api || instruments.length === 0) return;
+    const marketStream = this.api.stream.market as any;
 
     // 1. Subscribe Candles (1M)
-    const candlesReq = {
-      subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-      instruments: instrumentsToSubscribe.map((i) => ({
-        figi: i.figi,
-        instrumentId: i.figi,
-        interval: SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE,
-      })),
-      waitingClose: false,
-    };
-
-    await this.safeSubscribe(
-      this.api.stream.market.candles(candlesReq, (rawCandle) =>
-        this.handleRawCandle(rawCandle)
-      ),
-      2500,
-      'Candles'
-    );
+    marketStream.sendRequest({
+      subscribeCandlesRequest: {
+        subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+        instruments: instruments.map((i) => ({
+          figi: i.figi,
+          instrumentId: i.figi,
+          interval: SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE,
+        })),
+        waitingClose: false,
+      },
+    });
 
     // 2. Subscribe OrderBooks (depth 20)
-    const orderBookReq = {
-      subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-      instruments: topInstruments.map((i) => ({
-        figi: i.figi,
-        instrumentId: i.figi,
-        depth: 20,
-        orderBookType: 0,
-      })),
-    };
-
-    await this.safeSubscribe(
-      this.api.stream.market.orderBook(orderBookReq, (rawOrderBook) =>
-        this.handleRawOrderBook(rawOrderBook)
-      ),
-      2500,
-      'OrderBooks'
-    );
+    marketStream.sendRequest({
+      subscribeOrderBookRequest: {
+        subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+        instruments: instruments.map((i) => ({
+          figi: i.figi,
+          instrumentId: i.figi,
+          depth: 20,
+          orderBookType: 0,
+        })),
+      },
+    });
 
     // 3. Subscribe All Trades
-    const tradesReq = {
-      subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
-      instruments: topInstruments.map((i) => ({
-        figi: i.figi,
-        instrumentId: i.figi,
-      })),
-      tradeSource: TradeSourceType.TRADE_SOURCE_ALL,
-      withOpenInterest: false,
-    };
+    marketStream.sendRequest({
+      subscribeTradesRequest: {
+        subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_SUBSCRIBE,
+        instruments: instruments.map((i) => ({
+          figi: i.figi,
+          instrumentId: i.figi,
+        })),
+        tradeSource: TradeSourceType.TRADE_SOURCE_ALL,
+        withOpenInterest: false,
+      },
+    });
+  }
 
-    await this.safeSubscribe(
-      this.api.stream.market.trades(tradesReq, (rawTrade) =>
-        this.handleRawTrade(rawTrade)
-      ),
-      2500,
-      'Trades'
-    );
+  private sendGrpcUnsubscribe(instruments: { figi: string; ticker: string }[]): void {
+    if (!this.api || instruments.length === 0) return;
+    const marketStream = this.api.stream.market as any;
 
-    this.connectionState = 'CONNECTED';
+    // 1. Unsubscribe Candles
+    marketStream.sendRequest({
+      subscribeCandlesRequest: {
+        subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE,
+        instruments: instruments.map((i) => ({
+          figi: i.figi,
+          instrumentId: i.figi,
+          interval: SubscriptionInterval.SUBSCRIPTION_INTERVAL_ONE_MINUTE,
+        })),
+        waitingClose: false,
+      },
+    });
+
+    // 2. Unsubscribe OrderBooks
+    marketStream.sendRequest({
+      subscribeOrderBookRequest: {
+        subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE,
+        instruments: instruments.map((i) => ({
+          figi: i.figi,
+          instrumentId: i.figi,
+          depth: 20,
+          orderBookType: 0,
+        })),
+      },
+    });
+
+    // 3. Unsubscribe Trades
+    marketStream.sendRequest({
+      subscribeTradesRequest: {
+        subscriptionAction: SubscriptionAction.SUBSCRIPTION_ACTION_UNSUBSCRIBE,
+        instruments: instruments.map((i) => ({
+          figi: i.figi,
+          instrumentId: i.figi,
+        })),
+        tradeSource: TradeSourceType.TRADE_SOURCE_ALL,
+        withOpenInterest: false,
+      },
+    });
   }
 
   // --- Normalization ---

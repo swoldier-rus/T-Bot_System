@@ -744,6 +744,8 @@ async function initBackendWebSocket() {
 
                 if (state.assetFilter === 'favorites') {
                     syncFavoritesUniverseWithBackend();
+                } else {
+                    ws.send(JSON.stringify({ action: 'SET_ACTIVE_UNIVERSE', listMode: 'all_stocks' }));
                 }
             };
 

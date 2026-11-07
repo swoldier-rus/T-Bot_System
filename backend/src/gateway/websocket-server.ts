@@ -1,11 +1,12 @@
 import http from 'http';
 import { RawData, WebSocket, WebSocketServer } from 'ws';
+import { env } from '../config/env';
 import { EventBus } from '../core/event-bus';
 import { ModuleManager } from '../core/module-manager';
 import { SharedState } from '../core/shared-state';
 import { StreamManager } from '../core/stream-manager';
 import { TelegramService } from '../core/telegram-service';
-import { IndicatorParams, StockItem } from '../types/market';
+import { Candle, IndicatorParams, StockItem } from '../types/market';
 import { MarketSignal } from '../types/signals';
 
 interface ExtendedWebSocket extends WebSocket {
@@ -64,8 +65,8 @@ export class GatewayWebSocketServer {
     this.wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
       const extWs = ws as ExtendedWebSocket;
       extWs.isAlive = true;
-      extWs.subscribedTickers = new Set<string>(); // Empty set means receive all tickers
-      extWs.activeUniverse = null; // null = receive all stocks
+      extWs.subscribedTickers = new Set<string>();
+      extWs.activeUniverse = new Set<string>(); // Client registers active tickers on open
 
       // Only clients explicitly requesting signals (e.g. Dashboard monitor ?client=dashboard or ?signals=1) receive raw signal events
       const url = req.url || '';
@@ -80,15 +81,17 @@ export class GatewayWebSocketServer {
         })
       );
 
-      // 2. Immediately send current market snapshot
-      const snapshot = this.sharedState.getAllStockItems();
-      extWs.send(
-        JSON.stringify({
-          event: 'SNAPSHOT',
-          data: snapshot,
-          timestamp: Date.now(),
-        })
-      );
+      // 2. If client universe is already specified (reconnect), send filtered snapshot
+      if (extWs.activeUniverse && extWs.activeUniverse.size > 0) {
+        const snapshot = this.sharedState.getCustomSnapshot(Array.from(extWs.activeUniverse), extWs.indicatorParams);
+        extWs.send(
+          JSON.stringify({
+            event: 'SNAPSHOT',
+            data: snapshot,
+            timestamp: Date.now(),
+          })
+        );
+      }
 
       extWs.on('pong', () => {
         extWs.isAlive = true;
@@ -139,6 +142,11 @@ export class GatewayWebSocketServer {
     this.eventBus.on('market:delta_update', (deltas: StockItem[]) => {
       this.broadcastDeltaUpdate(deltas);
     });
+
+    // Broadcast individual candle ticks (strictly addressed per client active universe)
+    this.eventBus.on('market:candle_tick', (candle: Candle) => {
+      this.broadcastCandleTick(candle);
+    });
   }
 
   private handleClientMessage(ws: ExtendedWebSocket, raw: RawData): void {
@@ -147,7 +155,9 @@ export class GatewayWebSocketServer {
 
       switch (parsed.action) {
         case 'GET_SNAPSHOT': {
-          const currentTickers = ws.activeUniverse ? Array.from(ws.activeUniverse) : null;
+          const currentTickers = ws.activeUniverse && ws.activeUniverse.size > 0
+            ? Array.from(ws.activeUniverse)
+            : (ws.activeUniverse === null ? null : env.DEFAULT_TICKERS);
           const snapshot = this.sharedState.getCustomSnapshot(currentTickers, ws.indicatorParams);
           ws.send(
             JSON.stringify({
@@ -217,7 +227,7 @@ export class GatewayWebSocketServer {
         }
 
         case 'SET_ACTIVE_UNIVERSE': {
-          if (parsed.listMode === 'all_stocks') {
+          if (parsed.listMode === 'all_stocks' || parsed.listMode === 'all') {
             ws.activeUniverse = null;
           } else if (Array.isArray(parsed.tickers)) {
             ws.activeUniverse = new Set(parsed.tickers.map((t) => t.toUpperCase()));
@@ -341,7 +351,7 @@ export class GatewayWebSocketServer {
   }
 
   public getGlobalActiveUniverse(): Set<string> | null {
-    if (!this.wss || this.wss.clients.size === 0) return null;
+    if (!this.wss || this.wss.clients.size === 0) return new Set(env.DEFAULT_TICKERS);
     let anyWantsAll = false;
     const union = new Set<string>();
     let screenerCount = 0;
@@ -365,7 +375,9 @@ export class GatewayWebSocketServer {
       }
     }
 
-    if (screenerCount === 0 || anyWantsAll) return null;
+    if (screenerCount === 0) return new Set(env.DEFAULT_TICKERS);
+    if (anyWantsAll) return null;
+    if (union.size === 0) return new Set(env.DEFAULT_TICKERS);
     return union;
   }
 
@@ -374,20 +386,22 @@ export class GatewayWebSocketServer {
 
     for (const client of this.wss.clients) {
       const extWs = client as ExtendedWebSocket;
-      if (extWs.readyState === WebSocket.OPEN) {
+      if (extWs.readyState === WebSocket.OPEN && !extWs.subscribedSignals) {
         const clientStocks = extWs.activeUniverse
           ? stocks.filter((s) => extWs.activeUniverse!.has(s.ticker))
           : stocks;
 
-        const formatted = this.sharedState.formatStocksForClient(clientStocks, extWs.indicatorParams);
+        if (clientStocks.length > 0) {
+          const formatted = this.sharedState.formatStocksForClient(clientStocks, extWs.indicatorParams);
 
-        extWs.send(
-          JSON.stringify({
-            event: 'TICKER_UPDATE',
-            data: formatted,
-            timestamp: Date.now(),
-          })
-        );
+          extWs.send(
+            JSON.stringify({
+              event: 'TICKER_UPDATE',
+              data: formatted,
+              timestamp: Date.now(),
+            })
+          );
+        }
       }
     }
   }
@@ -397,7 +411,7 @@ export class GatewayWebSocketServer {
 
     for (const client of this.wss.clients) {
       const extWs = client as ExtendedWebSocket;
-      if (extWs.readyState === WebSocket.OPEN) {
+      if (extWs.readyState === WebSocket.OPEN && !extWs.subscribedSignals) {
         const clientDeltas = extWs.activeUniverse
           ? deltas.filter((d) => extWs.activeUniverse!.has(d.ticker))
           : deltas;
@@ -411,6 +425,26 @@ export class GatewayWebSocketServer {
               timestamp: Date.now(),
             })
           );
+        }
+      }
+    }
+  }
+
+  public broadcastCandleTick(candle: Candle): void {
+    if (!this.wss || this.wss.clients.size === 0) return;
+
+    const ticker = candle.ticker.toUpperCase();
+    const payload = JSON.stringify({
+      event: 'CANDLE_TICK',
+      data: candle,
+      timestamp: Date.now(),
+    });
+
+    for (const client of this.wss.clients) {
+      const extWs = client as ExtendedWebSocket;
+      if (extWs.readyState === WebSocket.OPEN && !extWs.subscribedSignals) {
+        if (extWs.activeUniverse === null || extWs.activeUniverse.has(ticker)) {
+          extWs.send(payload);
         }
       }
     }

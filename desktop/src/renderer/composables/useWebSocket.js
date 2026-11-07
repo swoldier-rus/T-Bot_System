@@ -27,6 +27,10 @@ export function useWebSocket() {
   watch(assetFilter, (newVal) => {
     if (newVal === 'favorites') {
       syncFavoritesWithBackend();
+    } else {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'SET_ACTIVE_UNIVERSE', listMode: 'all_stocks' }));
+      }
     }
   });
 
@@ -81,6 +85,8 @@ export function useWebSocket() {
           serverPingLabel.value = `WS ${wsPort} · 0ms`;
           if (assetFilter.value === 'favorites') {
             syncFavoritesWithBackend();
+          } else {
+            ws.send(JSON.stringify({ action: 'SET_ACTIVE_UNIVERSE', listMode: 'all_stocks' }));
           }
         };
 
