@@ -165,6 +165,7 @@ export function createRestApp(
       stats,
       totalStocksInState: sharedState.getAllStockItems().length,
       subscribedTickers,
+      subscribedCount: subscribedTickers.length,
       modules,
       telegram: {
         enabled: telegram.enabled,

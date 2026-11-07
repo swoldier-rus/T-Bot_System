@@ -508,11 +508,14 @@ export class GatewayWebSocketServer {
         }
       : { enabled: false, hasBotToken: false, hasChatId: false, cooldownMinutes: 5 };
 
+    const subscribedTickers = this.streamManager.getSubscribedTickers();
     const payload = JSON.stringify({
       event: 'METRICS_UPDATE',
       data: {
         connectionState: this.streamManager.getConnectionState(),
         stats: this.streamManager.getStats(),
+        subscribedTickers,
+        subscribedCount: subscribedTickers.length,
         totalStocksInState: this.sharedState.getAllStockItems().length,
         uptime: Math.floor((Date.now() - this.startTime) / 1000),
         modules: this.moduleManager ? this.moduleManager.getStatuses() : [],

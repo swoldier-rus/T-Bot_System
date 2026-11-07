@@ -599,7 +599,7 @@ export function renderDashboardHtml(): string {
         <div class="card">
           <div class="card-title">Всего пакетов <span>📦</span></div>
           <div class="card-value" id="val-packets">0</div>
-          <div class="card-sub" id="val-stocks-count">273 инструмента в памяти</div>
+          <div class="card-sub" id="val-stocks-count">0 активных подписок (из 273)</div>
         </div>
       </div>
 
@@ -618,8 +618,8 @@ export function renderDashboardHtml(): string {
                 <code style="color:#81c784;">invest-public-api.tbank.ru:443</code>
               </div>
               <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:8px; border-bottom:1px solid var(--border);">
-                <span>Подписано инструментов:</span>
-                <span id="grpc-subscribed-count" style="font-weight:700; color:#fff;">273 акций (TQBR)</span>
+                <span>Подписано инструментов (gRPC):</span>
+                <span id="grpc-subscribed-count" style="font-weight:700; color:var(--green);">0 акций (динамически)</span>
               </div>
               <div style="display:flex; justify-content:space-between; align-items:center; padding-bottom:8px; border-bottom:1px solid var(--border);">
                 <span>Реконнекты и сбои:</span>
@@ -793,9 +793,9 @@ export function renderDashboardHtml(): string {
     <section id="tab-rsi-stoch" class="tab-content">
       <div class="metrics-grid">
         <div class="card">
-          <div class="card-title">Всего акций в скринере <span>📊</span></div>
-          <div class="card-value" id="val-rsi-scanned">273</div>
-          <div class="card-sub">MOEX TQBR Universe</div>
+          <div class="card-title">Активных акций в подписке <span>📊</span></div>
+          <div class="card-value" id="val-rsi-scanned">0</div>
+          <div class="card-sub">Динамический Set Union клиентов</div>
         </div>
         <div class="card">
           <div class="card-title">Зона перепроданности (BUY) <span>🟢</span></div>
@@ -1717,9 +1717,26 @@ export function renderDashboardHtml(): string {
         document.getElementById('val-packets').textContent = (data.stats.totalPackets || 0).toLocaleString();
       }
 
-      const stocksCount = data.totalStocksInState || 273;
-      document.getElementById('val-stocks-count').textContent = \`\${stocksCount} инструментов в памяти\`;
-      document.getElementById('val-rsi-scanned').textContent = stocksCount;
+      const subCount = typeof data.subscribedCount === 'number' ? data.subscribedCount : (data.subscribedTickers?.length || 0);
+      const totalInCatalog = data.totalStocksInState || 273;
+      const subTickersList = Array.isArray(data.subscribedTickers) && data.subscribedTickers.length > 0
+        ? data.subscribedTickers.slice(0, 10).join(', ') + (data.subscribedTickers.length > 10 ? '...' : '')
+        : 'нет';
+
+      const grpcSubEl = document.getElementById('grpc-subscribed-count');
+      if (grpcSubEl) {
+        grpcSubEl.innerHTML = \`<span style="color:var(--green)">\${subCount} акций (динамически)</span> <span style="font-size:11px; color:var(--text-muted); font-weight:400;" title="Активно: \${subTickersList}">(из \${totalInCatalog} в справочнике)</span>\`;
+      }
+
+      const stocksCountEl = document.getElementById('val-stocks-count');
+      if (stocksCountEl) {
+        stocksCountEl.textContent = \`\${subCount} активных подписок (из \${totalInCatalog})\`;
+      }
+
+      const rsiScannedEl = document.getElementById('val-rsi-scanned');
+      if (rsiScannedEl) {
+        rsiScannedEl.textContent = subCount;
+      }
 
       if (typeof data.uptime === 'number') {
         const upSec = Math.floor(data.uptime);
