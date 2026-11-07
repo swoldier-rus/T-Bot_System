@@ -27,7 +27,10 @@ interface ClientMessage {
     | 'UNSUBSCRIBE_SIGNALS'
     | 'SET_ACTIVE_UNIVERSE'
     | 'SET_INDICATOR_PARAMS'
-    | 'SEND_TELEGRAM';
+    | 'SEND_TELEGRAM'
+    | 'GET_DEFAULT_TICKERS'
+    | 'SET_DEFAULT_TICKERS'
+    | 'RESET_DEFAULT_TICKERS';
   tickers?: string[];
   listMode?: string;
   params?: Partial<IndicatorParams>;
@@ -147,9 +150,16 @@ export class GatewayWebSocketServer {
     this.eventBus.on('market:candle_tick', (candle: Candle) => {
       this.broadcastCandleTick(candle);
     });
+
+    // Listen to default tickers updates from DatabaseService
+    this.eventBus.on('system:default_tickers_updated', (effectiveTickers: string[]) => {
+      const globalUnion = this.getGlobalActiveUniverse();
+      this.streamManager.syncActiveUniverse(globalUnion).catch(() => {});
+      this.broadcastDefaultTickers(effectiveTickers);
+    });
   }
 
-  private handleClientMessage(ws: ExtendedWebSocket, raw: RawData): void {
+  private async handleClientMessage(ws: ExtendedWebSocket, raw: RawData): Promise<void> {
     try {
       const parsed = JSON.parse(raw.toString()) as ClientMessage;
 
@@ -332,6 +342,60 @@ export class GatewayWebSocketServer {
           break;
         }
 
+        case 'GET_DEFAULT_TICKERS': {
+          const dbService = this.streamManager.getDatabaseService();
+          const effective = dbService.getEffectiveDefaultTickers(env.DEFAULT_TICKERS);
+          const hasCustom = dbService.hasCustomDefaultTickers();
+          ws.send(
+            JSON.stringify({
+              event: 'DEFAULT_TICKERS',
+              data: {
+                tickers: effective,
+                isFromEnv: !hasCustom,
+                envTickers: env.DEFAULT_TICKERS,
+              },
+              timestamp: Date.now(),
+            })
+          );
+          break;
+        }
+
+        case 'SET_DEFAULT_TICKERS': {
+          if (Array.isArray(parsed.tickers)) {
+            await this.streamManager.updateDefaultTickers(parsed.tickers);
+            const dbService = this.streamManager.getDatabaseService();
+            const effective = dbService.getEffectiveDefaultTickers(env.DEFAULT_TICKERS);
+            ws.send(
+              JSON.stringify({
+                event: 'DEFAULT_TICKERS_UPDATED',
+                data: {
+                  tickers: effective,
+                  isFromEnv: !dbService.hasCustomDefaultTickers(),
+                  success: true,
+                },
+                timestamp: Date.now(),
+              })
+            );
+          }
+          break;
+        }
+
+        case 'RESET_DEFAULT_TICKERS': {
+          await this.streamManager.resetDefaultTickers();
+          ws.send(
+            JSON.stringify({
+              event: 'DEFAULT_TICKERS_UPDATED',
+              data: {
+                tickers: env.DEFAULT_TICKERS,
+                isFromEnv: true,
+                success: true,
+              },
+              timestamp: Date.now(),
+            })
+          );
+          break;
+        }
+
         default:
           ws.send(
             JSON.stringify({
@@ -351,7 +415,8 @@ export class GatewayWebSocketServer {
   }
 
   public getGlobalActiveUniverse(): Set<string> | null {
-    if (!this.wss || this.wss.clients.size === 0) return new Set(env.DEFAULT_TICKERS);
+    const effectiveDefaults = this.streamManager.getDatabaseService().getEffectiveDefaultTickers(env.DEFAULT_TICKERS);
+    if (!this.wss || this.wss.clients.size === 0) return new Set(effectiveDefaults);
     let anyWantsAll = false;
     const union = new Set<string>();
     let screenerCount = 0;
@@ -375,9 +440,9 @@ export class GatewayWebSocketServer {
       }
     }
 
-    if (screenerCount === 0) return new Set(env.DEFAULT_TICKERS);
+    if (screenerCount === 0) return new Set(effectiveDefaults);
     if (anyWantsAll) return null;
-    if (union.size === 0) return new Set(env.DEFAULT_TICKERS);
+    if (union.size === 0) return new Set(effectiveDefaults);
     return union;
   }
 
@@ -509,6 +574,10 @@ export class GatewayWebSocketServer {
       : { enabled: false, hasBotToken: false, hasChatId: false, cooldownMinutes: 5 };
 
     const subscribedTickers = this.streamManager.getSubscribedTickers();
+    const dbService = this.streamManager.getDatabaseService();
+    const defaultTickers = dbService.getDefaultTickers();
+    const hasCustomDefault = dbService.hasCustomDefaultTickers();
+
     const payload = JSON.stringify({
       event: 'METRICS_UPDATE',
       data: {
@@ -516,10 +585,33 @@ export class GatewayWebSocketServer {
         stats: this.streamManager.getStats(),
         subscribedTickers,
         subscribedCount: subscribedTickers.length,
+        defaultTickersCount: defaultTickers.length || env.DEFAULT_TICKERS.length,
+        isDefaultFromDb: hasCustomDefault,
         totalStocksInState: this.sharedState.getAllStockItems().length,
         uptime: Math.floor((Date.now() - this.startTime) / 1000),
         modules: this.moduleManager ? this.moduleManager.getStatuses() : [],
         telegram: telegramStatus,
+      },
+    });
+
+    for (const client of this.wss.clients) {
+      const extWs = client as ExtendedWebSocket;
+      if (extWs.readyState === WebSocket.OPEN && extWs.subscribedSignals) {
+        extWs.send(payload);
+      }
+    }
+  }
+
+  public broadcastDefaultTickers(tickers: string[]): void {
+    if (!this.wss || this.wss.clients.size === 0) return;
+    const isFromDb = this.streamManager.getDatabaseService().hasCustomDefaultTickers();
+    const payload = JSON.stringify({
+      event: 'DEFAULT_TICKERS_UPDATED',
+      data: {
+        tickers,
+        isFromEnv: !isFromDb,
+        count: tickers.length,
+        timestamp: Date.now(),
       },
     });
 

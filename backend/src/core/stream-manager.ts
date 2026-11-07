@@ -22,6 +22,7 @@ import {
 } from '../types/market';
 import { EventBus } from './event-bus';
 import { SharedState } from './shared-state';
+import { DatabaseService } from './database-service';
 
 export interface StreamStats {
   fps: number;
@@ -73,17 +74,36 @@ export class StreamManager {
 
   constructor(
     private readonly eventBus: EventBus,
-    private readonly sharedState: SharedState
+    private readonly sharedState: SharedState,
+    private readonly databaseService: DatabaseService = new DatabaseService()
   ) {
     // Pre-populate known MOEX instruments in shared state
     for (const inst of MOEX_TOP_SHARES) {
       this.sharedState.setInstrument(inst);
     }
-    // Only subscribe to default tickers from env on startup
-    for (const ticker of env.DEFAULT_TICKERS) {
+    // Subscribe to effective default tickers (DB if populated, else .env)
+    const effectiveDefaults = this.databaseService.getEffectiveDefaultTickers(env.DEFAULT_TICKERS);
+    for (const ticker of effectiveDefaults) {
       this.subscribedTickers.add(ticker.toUpperCase());
       this.currentSubscribed.add(ticker.toUpperCase());
     }
+  }
+
+  public getDatabaseService(): DatabaseService {
+    return this.databaseService;
+  }
+
+  public async updateDefaultTickers(tickers: string[]): Promise<void> {
+    this.databaseService.setDefaultTickers(tickers);
+    const effective = this.databaseService.getEffectiveDefaultTickers(env.DEFAULT_TICKERS);
+    console.info(`💾 Updated default tickers in SQLite (${tickers.length} saved)`);
+    this.eventBus.emit('system:default_tickers_updated', effective);
+  }
+
+  public async resetDefaultTickers(): Promise<void> {
+    this.databaseService.clearDefaultTickers();
+    console.info(`🔄 Reset default tickers in SQLite, reverted to .env (${env.DEFAULT_TICKERS.length} items)`);
+    this.eventBus.emit('system:default_tickers_updated', env.DEFAULT_TICKERS);
   }
 
   public getConnectionState(): ConnectionState {
@@ -193,9 +213,11 @@ export class StreamManager {
       targetSet = new Set(all.map((i) => i.ticker.toUpperCase()));
       console.info(`🌐 Active universe: ALL MOEX instruments (${targetSet.size})`);
     } else if (targetTickers.size === 0) {
-      // Fallback: no clients connected, revert to DEFAULT_TICKERS
-      targetSet = new Set(env.DEFAULT_TICKERS.map((t) => t.toUpperCase()));
-      console.info(`💤 No active clients, reverting to DEFAULT_TICKERS (${targetSet.size})`);
+      // Fallback: no clients connected, revert to effective defaults (DB if set, else .env)
+      const effective = this.databaseService.getEffectiveDefaultTickers(env.DEFAULT_TICKERS);
+      targetSet = new Set(effective.map((t) => t.toUpperCase()));
+      const source = this.databaseService.hasCustomDefaultTickers() ? 'SQLite DB' : '.env';
+      console.info(`💤 No active clients, reverting to default tickers from ${source} (${targetSet.size})`);
     } else {
       targetSet = new Set(Array.from(targetTickers).map((t) => t.toUpperCase()));
       console.info(

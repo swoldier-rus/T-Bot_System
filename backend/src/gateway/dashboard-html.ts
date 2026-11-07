@@ -247,6 +247,185 @@ export function renderDashboardHtml(): string {
       .split-grid { grid-template-columns: 1fr; }
     }
 
+    /* Default Universe Catalog Grid & Toolbar */
+    .universe-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .universe-search {
+      flex: 1;
+      min-width: 260px;
+      position: relative;
+    }
+    .universe-search input {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px 8px 34px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .universe-search input:focus {
+      border-color: var(--accent);
+      background: rgba(41, 98, 255, 0.06);
+    }
+    .universe-search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 13px;
+      pointer-events: none;
+    }
+    .filter-pills-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .filter-pill {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 5px 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .filter-pill:hover {
+      color: #fff;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+    .filter-pill.active {
+      background: rgba(41, 98, 255, 0.18);
+      border-color: var(--accent);
+      color: #82b1ff;
+      font-weight: 600;
+    }
+    .universe-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .universe-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+      max-height: calc(100vh - 270px);
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .stock-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+    }
+    .stock-card:hover {
+      border-color: rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.03);
+      transform: translateY(-1px);
+    }
+    .stock-card.selected {
+      border-color: rgba(41, 98, 255, 0.65);
+      background: rgba(41, 98, 255, 0.08);
+      box-shadow: 0 0 10px rgba(41, 98, 255, 0.12);
+    }
+    .stock-checkbox {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .stock-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      color: #fff;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .stock-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .stock-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .stock-header {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .stock-ticker {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .stock-class-badge {
+      font-size: 10px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+    }
+    .stock-title {
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 2px;
+    }
+    .stock-meta {
+      text-align: right;
+      flex-shrink: 0;
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .stock-price {
+      color: #fff;
+      font-weight: 600;
+    }
+    .stock-change {
+      font-size: 11px;
+      margin-top: 2px;
+    }
+    .stock-change.up { color: var(--green); }
+    .stock-change.down { color: var(--red); }
+    .stock-change.neutral { color: var(--text-muted); }
+
     /* Terminal Styles */
     .terminal-container {
       display: flex;
@@ -566,6 +745,10 @@ export function renderDashboardHtml(): string {
     <button class="tab-btn" data-tab="nw-rsi">
       <span>🌊</span> <span>RSI + Nadaraya-Watson</span>
       <span class="tab-badge" id="badge-nw-count">0</span>
+    </button>
+    <button class="tab-btn" data-tab="default-universe" id="tab-btn-default-universe">
+      <span>📋</span> <span>Список по умолчанию</span>
+      <span class="tab-badge" id="badge-default-count">0</span>
     </button>
     <button class="tab-btn" data-tab="settings">
       <span>⚙️</span> <span>Настройки & Telegram</span>
@@ -931,7 +1114,67 @@ export function renderDashboardHtml(): string {
       </div>
     </section>
 
-    <!-- TAB 6: НАСТРОЙКИ & TELEGRAM -->
+    <!-- TAB 6: DEFAULT UNIVERSE (SQLITE & FALLBACK TO .ENV) -->
+    <section id="tab-default-universe" class="tab-content">
+      <div class="metrics-grid" style="margin-bottom:16px;">
+        <div class="card">
+          <div class="card-title">Выбрано акций по умолчанию <span>📋</span></div>
+          <div class="card-value" id="val-def-selected-count" style="color:var(--green);">0</div>
+          <div class="card-sub" id="val-def-source-sub">Источник: SQLite (data/settings.db)</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Всего в каталоге MOEX TQBR <span>🏛️</span></div>
+          <div class="card-value" id="val-def-total-count">273</div>
+          <div class="card-sub">Доступные для подписки акции</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Статус хранилища <span>💾</span></div>
+          <div class="card-value" id="val-def-db-status" style="font-size:16px; font-weight:600; color:#82b1ff;">SQLite База данных</div>
+          <div class="card-sub" id="val-def-db-sub">Файл data/settings.db</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Режим работы при старте <span>⚡</span></div>
+          <div class="card-value" id="val-def-mode-status" style="font-size:15px; font-weight:600; color:#fff;">Динамический fallback</div>
+          <div class="card-sub">Если база пуста → fallback на .env</div>
+        </div>
+      </div>
+
+      <!-- Action Toolbar -->
+      <div class="universe-toolbar">
+        <div class="universe-search">
+          <span class="universe-search-icon">🔍</span>
+          <input type="text" id="def-search-input" placeholder="Поиск по тикеру или названию (например SBER, Сбер, Газпром)..." />
+        </div>
+
+        <div class="filter-pills-group">
+          <button type="button" class="filter-pill active" data-filter="all" id="pill-filter-all">Все (<span id="pill-cnt-all">273</span>)</button>
+          <button type="button" class="filter-pill" data-filter="selected" id="pill-filter-selected">Выбранные (<span id="pill-cnt-selected">0</span>)</button>
+          <button type="button" class="filter-pill" data-filter="blue-chips" id="pill-filter-blue">Голубые фишки (22)</button>
+        </div>
+
+        <div class="universe-actions">
+          <button type="button" class="btn btn-secondary" id="btn-def-select-top20" title="Выбрать 20 самых ликвидных акций MOEX">
+            ⭐ Топ-20
+          </button>
+          <button type="button" class="btn btn-secondary" id="btn-def-reset-env" title="Очистить базу данных SQLite и вернуть список из .env">
+            🔄 Сбросить к .env
+          </button>
+          <button type="button" class="btn btn-secondary" id="btn-def-clear-all" title="Снять все галочки">
+            ✕ Снять все
+          </button>
+          <span id="def-auto-save-indicator" style="font-size:12px; color:var(--green); font-weight:600; display:none;">✓ Сохранено в SQLite</span>
+        </div>
+      </div>
+
+      <!-- Stock Cards Grid -->
+      <div class="universe-grid" id="def-stocks-grid">
+        <div style="grid-column: 1 / -1; text-align:center; padding: 40px; color:var(--text-muted);">
+          Загрузка каталога инструментов MOEX...
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 7: НАСТРОЙКИ & TELEGRAM -->
     <section id="tab-settings" class="tab-content">
       <div class="split-grid">
         <!-- Column 1: Telegram & Module Toggles -->
@@ -1105,6 +1348,10 @@ export function renderDashboardHtml(): string {
 
       if (updateHash) {
         window.location.hash = tabId;
+      }
+
+      if (tabId === 'default-universe') {
+        loadDefaultUniverse();
       }
     }
 
@@ -1684,7 +1931,276 @@ export function renderDashboardHtml(): string {
     }
 
     // -------------------------------------------------------------
-    // 7. Status & Metrics Handler
+    // 7. Tab 6: Default Universe Manager (SQLite & Fallback to .env)
+    // -------------------------------------------------------------
+    const BLUE_CHIPS_SET = new Set([
+      'SBER', 'SBERP', 'GAZP', 'LKOH', 'GMKN', 'NVTK', 'YDEX', 'YNDX', 'ROSN',
+      'MGNT', 'TATN', 'TATNP', 'MTSS', 'CHMF', 'NLMK', 'MAGN', 'ALRS', 'PLZL',
+      'IRAO', 'VTBR', 'SNGS', 'SNGSP', 'TRNFP', 'MOEX', 'AFLT', 'PHOR', 'T'
+    ]);
+    const TOP_20_LIST = [
+      'SBER', 'GAZP', 'LKOH', 'GMKN', 'NVTK', 'YDEX', 'ROSN', 'MGNT',
+      'TATN', 'MTSS', 'CHMF', 'NLMK', 'ALRS', 'PLZL', 'IRAO', 'VTBR',
+      'SNGS', 'SNGSP', 'TRNFP', 'MOEX'
+    ];
+
+    let allUniverseStocks = [];
+    let selectedDefaultTickers = new Set();
+    let currentUniverseFilter = 'all';
+    let universeSearchQuery = '';
+    let defaultAutoSaveTimer = null;
+    let universeLoaded = false;
+
+    async function loadDefaultUniverse(force = false) {
+      if (universeLoaded && !force) return;
+      try {
+        const res = await fetch('/api/default-tickers');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        allUniverseStocks = Array.isArray(data.instruments) ? data.instruments : [];
+        selectedDefaultTickers = new Set(Array.isArray(data.tickers) ? data.tickers : []);
+        universeLoaded = true;
+
+        const totalEl = document.getElementById('val-def-total-count');
+        const pillAllEl = document.getElementById('pill-cnt-all');
+        if (totalEl) totalEl.textContent = allUniverseStocks.length;
+        if (pillAllEl) pillAllEl.textContent = allUniverseStocks.length;
+
+        updateUniverseCounters(!data.isFromEnv);
+        renderUniverseGrid();
+      } catch (e) {
+        console.error('Failed to load default universe:', e);
+      }
+    }
+
+    function updateUniverseCounters(isCustomDb) {
+      const count = selectedDefaultTickers.size;
+      const valCount = document.getElementById('val-def-selected-count');
+      const badgeCount = document.getElementById('badge-default-count');
+      const pillSelected = document.getElementById('pill-cnt-selected');
+      const dbStatus = document.getElementById('val-def-db-status');
+      const sourceSub = document.getElementById('val-def-source-sub');
+
+      if (valCount) valCount.textContent = count;
+      if (badgeCount) badgeCount.textContent = count;
+      if (pillSelected) pillSelected.textContent = count;
+
+      if (count === 0 || !isCustomDb) {
+        if (dbStatus) {
+          dbStatus.textContent = count === 0 ? 'Fallback на .env (база пуста)' : 'По умолчанию (.env)';
+          dbStatus.style.color = '#ffb74d';
+        }
+        if (sourceSub) {
+          sourceSub.textContent = count === 0 ? 'База пуста → активен fallback на .env' : 'Источник: Резервный список .env';
+        }
+      } else {
+        if (dbStatus) {
+          dbStatus.textContent = 'SQLite База данных';
+          dbStatus.style.color = '#82b1ff';
+        }
+        if (sourceSub) {
+          sourceSub.textContent = 'Источник: SQLite (data/settings.db)';
+        }
+      }
+    }
+
+    function renderUniverseGrid() {
+      const grid = document.getElementById('def-stocks-grid');
+      if (!grid) return;
+
+      if (allUniverseStocks.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align:center; padding: 40px; color:var(--text-muted);">Каталог инструментов пуст или загружается...</div>';
+        return;
+      }
+
+      const q = universeSearchQuery;
+      const filtered = allUniverseStocks.filter(stock => {
+        const matchSearch = !q || stock.ticker.includes(q) || (stock.name && stock.name.toUpperCase().includes(q));
+        if (!matchSearch) return false;
+
+        if (currentUniverseFilter === 'selected') {
+          return selectedDefaultTickers.has(stock.ticker);
+        }
+        if (currentUniverseFilter === 'blue-chips') {
+          return BLUE_CHIPS_SET.has(stock.ticker);
+        }
+        return true;
+      });
+
+      // Sort: selected first, then alphabetically
+      filtered.sort((a, b) => {
+        const aSel = selectedDefaultTickers.has(a.ticker) ? 1 : 0;
+        const bSel = selectedDefaultTickers.has(b.ticker) ? 1 : 0;
+        if (aSel !== bSel) return bSel - aSel;
+        return a.ticker.localeCompare(b.ticker);
+      });
+
+      if (filtered.length === 0) {
+        grid.innerHTML = '<div style="grid-column: 1 / -1; text-align:center; padding: 30px; color:var(--text-muted);">Ничего не найдено по текущим фильтрам</div>';
+        return;
+      }
+
+      grid.innerHTML = filtered.map(stock => {
+        const isSelected = selectedDefaultTickers.has(stock.ticker);
+        const change = typeof stock.change === 'number' ? stock.change : 0;
+        const changeCls = change > 0 ? 'up' : change < 0 ? 'down' : 'neutral';
+        const changeSign = change > 0 ? '+' : '';
+        const priceStr = stock.price ? stock.price.toFixed(2) + ' ₽' : '—';
+        const avatarLetters = stock.ticker.slice(0, 2);
+
+        return \`
+          <div class="stock-card \${isSelected ? 'selected' : ''}" data-ticker="\${stock.ticker}">
+            <input type="checkbox" class="stock-checkbox" \${isSelected ? 'checked' : ''} data-ticker="\${stock.ticker}" />
+            <div class="stock-avatar" style="\${stock.logoColor ? 'background:' + stock.logoColor : ''}">
+              \${stock.logoUrl ? \`<img src="\${stock.logoUrl}" alt="\${stock.ticker}" onerror="this.style.display='none'; this.parentNode.textContent='\${avatarLetters}';" />\` : avatarLetters}
+            </div>
+            <div class="stock-info">
+              <div class="stock-header">
+                <span class="stock-ticker">\${stock.ticker}</span>
+                <span class="stock-class-badge">\${stock.classCode || 'TQBR'}</span>
+              </div>
+              <div class="stock-title" title="\${stock.name || stock.ticker}">\${stock.name || stock.ticker}</div>
+            </div>
+            <div class="stock-meta">
+              <div class="stock-price">\${priceStr}</div>
+              <div class="stock-change \${changeCls}">\${changeSign}\${change.toFixed(2)}%</div>
+            </div>
+          </div>
+        \`;
+      }).join('');
+
+      // Attach click listeners to cards
+      grid.querySelectorAll('.stock-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+          const ticker = card.getAttribute('data-ticker');
+          if (!ticker) return;
+          const checkbox = card.querySelector('.stock-checkbox');
+
+          const isDirectCheckbox = e.target === checkbox || e.target.classList.contains('stock-checkbox');
+          if (!isDirectCheckbox && checkbox) {
+            checkbox.checked = !checkbox.checked;
+          }
+
+          const isChecked = checkbox ? checkbox.checked : !selectedDefaultTickers.has(ticker);
+          if (isChecked) {
+            selectedDefaultTickers.add(ticker);
+            card.classList.add('selected');
+          } else {
+            selectedDefaultTickers.delete(ticker);
+            card.classList.remove('selected');
+          }
+
+          updateUniverseCounters(true);
+          saveDefaultTickersDebounced();
+        });
+      });
+    }
+
+    function saveDefaultTickersDebounced() {
+      const indicator = document.getElementById('def-auto-save-indicator');
+      if (indicator) {
+        indicator.style.display = 'inline';
+        indicator.style.color = 'var(--orange)';
+        indicator.textContent = '💾 Сохранение в SQLite...';
+      }
+
+      if (defaultAutoSaveTimer) clearTimeout(defaultAutoSaveTimer);
+      defaultAutoSaveTimer = setTimeout(async () => {
+        try {
+          const tickers = Array.from(selectedDefaultTickers);
+          const res = await fetch('/api/default-tickers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tickers })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            updateUniverseCounters(!data.isFromEnv);
+            if (indicator) {
+              indicator.style.color = 'var(--green)';
+              indicator.textContent = tickers.length > 0 ? '✓ Сохранено в SQLite' : '✓ Список пуст (fallback на .env)';
+              setTimeout(() => {
+                indicator.style.display = 'none';
+              }, 2500);
+            }
+          } else {
+            if (indicator) {
+              indicator.style.color = 'var(--red)';
+              indicator.textContent = '⚠️ Ошибка сохранения';
+            }
+          }
+        } catch (e) {
+          if (indicator) {
+            indicator.style.color = 'var(--red)';
+            indicator.textContent = '❌ Ошибка сети';
+          }
+        }
+      }, 250);
+    }
+
+    // Default Universe Toolbar Listeners
+    const defSearchInput = document.getElementById('def-search-input');
+    if (defSearchInput) {
+      defSearchInput.addEventListener('input', () => {
+        universeSearchQuery = defSearchInput.value.trim().toUpperCase();
+        renderUniverseGrid();
+      });
+    }
+
+    document.querySelectorAll('.filter-pills-group .filter-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pills-group .filter-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        currentUniverseFilter = pill.getAttribute('data-filter') || 'all';
+        renderUniverseGrid();
+      });
+    });
+
+    document.getElementById('btn-def-select-top20')?.addEventListener('click', () => {
+      selectedDefaultTickers = new Set(TOP_20_LIST);
+      updateUniverseCounters(true);
+      renderUniverseGrid();
+      saveDefaultTickersDebounced();
+    });
+
+    document.getElementById('btn-def-reset-env')?.addEventListener('click', async () => {
+      const indicator = document.getElementById('def-auto-save-indicator');
+      if (indicator) {
+        indicator.style.display = 'inline';
+        indicator.style.color = 'var(--orange)';
+        indicator.textContent = '🔄 Сброс к .env...';
+      }
+      try {
+        const res = await fetch('/api/default-tickers/reset', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          selectedDefaultTickers = new Set(data.tickers || []);
+          updateUniverseCounters(false);
+          renderUniverseGrid();
+          if (indicator) {
+            indicator.style.color = 'var(--green)';
+            indicator.textContent = '✓ Сброшено к .env';
+            setTimeout(() => { indicator.style.display = 'none'; }, 2500);
+          }
+        }
+      } catch (e) {
+        if (indicator) {
+          indicator.style.color = 'var(--red)';
+          indicator.textContent = '❌ Ошибка сброса';
+        }
+      }
+    });
+
+    document.getElementById('btn-def-clear-all')?.addEventListener('click', () => {
+      selectedDefaultTickers.clear();
+      updateUniverseCounters(true);
+      renderUniverseGrid();
+      saveDefaultTickersDebounced();
+    });
+
+    // -------------------------------------------------------------
+    // 8. Status & Metrics Handler
     // -------------------------------------------------------------
     function applyStatusData(data) {
       if (!data) return;
@@ -1736,6 +2252,13 @@ export function renderDashboardHtml(): string {
       const rsiScannedEl = document.getElementById('val-rsi-scanned');
       if (rsiScannedEl) {
         rsiScannedEl.textContent = subCount;
+      }
+
+      if (typeof data.defaultTickersCount === 'number') {
+        const badgeDefEl = document.getElementById('badge-default-count');
+        if (badgeDefEl && !selectedDefaultTickers.size) {
+          badgeDefEl.textContent = data.defaultTickersCount;
+        }
       }
 
       if (typeof data.uptime === 'number') {
@@ -1837,6 +2360,15 @@ export function renderDashboardHtml(): string {
 
           if (msg.event === 'METRICS_UPDATE') {
             applyStatusData(msg.data);
+            return;
+          }
+
+          if (msg.event === 'DEFAULT_TICKERS_UPDATED') {
+            if (msg.data && Array.isArray(msg.data.tickers)) {
+              selectedDefaultTickers = new Set(msg.data.tickers);
+              updateUniverseCounters(!msg.data.isFromEnv);
+              renderUniverseGrid();
+            }
             return;
           }
 
@@ -2053,6 +2585,8 @@ export function renderDashboardHtml(): string {
             if (typeof p.nwRepaint === 'boolean') document.getElementById('cfg-nw-repaint').checked = p.nwRepaint;
           }
         }
+
+        loadDefaultUniverse();
       } catch (e) {}
     }
 

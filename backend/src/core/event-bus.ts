@@ -23,6 +23,7 @@ export interface EventMap {
   'module:toggled': { moduleId: string; enabled: boolean };
   'dashboard:log': any;
   'system:indicator_params_updated': any;
+  'system:default_tickers_updated': string[];
 }
 
 export class EventBus {

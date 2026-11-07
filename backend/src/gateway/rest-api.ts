@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express, { Express, Request, Response } from 'express';
+import { env } from '../config/env';
 import { EventBus } from '../core/event-bus';
 import { ModuleManager } from '../core/module-manager';
 import { FixedRingBuffer } from '../core/ring-buffer';
@@ -210,6 +211,102 @@ export function createRestApp(
       subscribedTickers: streamManager.getSubscribedTickers(),
     });
   });
+
+  // GET /default-tickers - Get default universe with full instruments catalog and selection status
+  const handleGetDefaultTickers = (_req: Request, res: Response) => {
+    const dbService = streamManager.getDatabaseService();
+    const effective = dbService.getEffectiveDefaultTickers(env.DEFAULT_TICKERS);
+    const hasCustom = dbService.hasCustomDefaultTickers();
+    const selectedSet = new Set(effective);
+
+    let allStocks = sharedState.getAllStockItems();
+    if (allStocks.length === 0) {
+      allStocks = sharedState.getAllInstruments().map((inst) => ({
+        ticker: inst.ticker,
+        fullSymbol: `MOEX:${inst.ticker}`,
+        description: inst.name || inst.ticker,
+        figi: inst.figi,
+        lot: inst.lot || 1,
+        logoUrl: inst.logoUrl,
+        logoColor: inst.logoColor,
+        price: null,
+        prevClose: null,
+        change: 0,
+        turnover: 0,
+        volume: 0,
+        classCode: inst.classCode || 'TQBR',
+      })) as any;
+    }
+
+    const instruments = allStocks.map((stock) => {
+      const inst = sharedState.getInstrument(stock.ticker);
+      return {
+        ticker: stock.ticker,
+        name: stock.description || inst?.name || stock.ticker,
+        classCode: inst?.classCode || 'TQBR',
+        price: stock.price,
+        change: stock.change,
+        logoUrl: stock.logoUrl || inst?.logoUrl,
+        logoColor: stock.logoColor || inst?.logoColor,
+        isSelected: selectedSet.has(stock.ticker),
+      };
+    });
+
+    res.json({
+      status: 'ok',
+      tickers: effective,
+      isFromEnv: !hasCustom,
+      envTickers: env.DEFAULT_TICKERS,
+      selectedCount: effective.length,
+      totalCatalogCount: instruments.length,
+      instruments,
+      timestamp: Date.now(),
+    });
+  };
+
+  app.get('/default-tickers', handleGetDefaultTickers);
+  app.get('/api/default-tickers', handleGetDefaultTickers);
+
+  // POST /default-tickers - Update custom default tickers list in SQLite
+  const handleSetDefaultTickers = async (req: Request, res: Response) => {
+    const { tickers } = req.body || {};
+    if (!Array.isArray(tickers)) {
+      res.status(400).json({ error: 'Field "tickers" must be an array of strings' });
+      return;
+    }
+
+    await streamManager.updateDefaultTickers(tickers);
+    const dbService = streamManager.getDatabaseService();
+    const effective = dbService.getEffectiveDefaultTickers(env.DEFAULT_TICKERS);
+
+    res.json({
+      status: 'ok',
+      tickers: effective,
+      isFromEnv: !dbService.hasCustomDefaultTickers(),
+      selectedCount: effective.length,
+      subscribedCount: streamManager.getSubscribedTickers().length,
+      timestamp: Date.now(),
+    });
+  };
+
+  app.post('/default-tickers', handleSetDefaultTickers);
+  app.post('/api/default-tickers', handleSetDefaultTickers);
+
+  // POST /default-tickers/reset - Reset to .env default tickers
+  const handleResetDefaultTickers = async (_req: Request, res: Response) => {
+    await streamManager.resetDefaultTickers();
+    res.json({
+      status: 'ok',
+      tickers: env.DEFAULT_TICKERS,
+      isFromEnv: true,
+      selectedCount: env.DEFAULT_TICKERS.length,
+      subscribedCount: streamManager.getSubscribedTickers().length,
+      timestamp: Date.now(),
+    });
+  };
+
+  app.post('/default-tickers/reset', handleResetDefaultTickers);
+  app.post('/api/default-tickers/reset', handleResetDefaultTickers);
 
   // POST /modules/:id/toggle
   app.post('/modules/:id/toggle', (req: Request, res: Response) => {
