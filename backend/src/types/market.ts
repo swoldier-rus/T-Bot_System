@@ -109,6 +109,6 @@ export const DEFAULT_INDICATOR_PARAMS: IndicatorParams = {
   rvolDays: 10,
   nwBandwidth: 8,
   nwMult: 3,
-  nwRepaint: false,
+  nwRepaint: true,
   cciPeriod: 20,
 };

@@ -350,21 +350,21 @@ export class StreamManager {
     console.info(`⏳ Warming up historical candles for ${priorityTickers.length} top priority blue chips...`);
 
     const now = new Date();
-    const from5m = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
-    const from15m = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
-    const from1h = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
-    const from4h = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000);
-    const from1d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const from5m = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
+    const from15m = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
+    const from1h = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000);
+    const from4h = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const from1d = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
 
     const fetchCandlesForTicker = async (ticker: string, forceFresh = false): Promise<boolean> => {
       const inst = this.sharedState.getInstrument(ticker);
       if (!inst) return false;
 
-      // Skip remote fetch if already loaded from local cache and fresh
+      // Skip remote fetch if already loaded from local cache and fresh with sufficient history
       if (!forceFresh) {
         const c5 = this.sharedState.getCandles(ticker, '5m');
         const c1d = this.sharedState.getCandles(ticker, '1d');
-        if (c5.length >= 15 && c1d.length >= 15) {
+        if (c5.length >= 250 && c1d.length >= 15) {
           const last5m = c5[c5.length - 1];
           const last1d = c1d[c1d.length - 1];
           const todayDateStr = new Date().toISOString().slice(0, 10);

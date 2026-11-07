@@ -881,7 +881,7 @@ export function renderDashboardHtml(): string {
         <div class="card">
           <div class="card-title">Параметры NW Envelope <span>⚙️</span></div>
           <div class="card-value" style="font-size:16px;">h: 8.0 | Mult: 3.0</div>
-          <div class="card-sub">Gaussian Kernel Smoothing</div>
+          <div class="card-sub">LuxAlgo Standard (500 баров)</div>
         </div>
       </div>
 
@@ -1021,9 +1021,19 @@ export function renderDashboardHtml(): string {
 
               <div class="form-row">
                 <div class="form-group">
+                  <label>Режим LuxAlgo (500 баров)</label>
+                  <label class="toggle-switch" style="margin-top:4px;">
+                    <input type="checkbox" id="cfg-nw-repaint" checked>
+                    <span class="toggle-slider"></span>
+                  </label>
+                </div>
+                <div class="form-group">
                   <label>Айсберги: Мин. множитель</label>
                   <input type="number" id="cfg-iceberg-ratio" class="form-input" min="1.5" max="20" step="0.5" value="2.5">
                 </div>
+              </div>
+
+              <div class="form-row">
                 <div class="form-group">
                   <label>Роботы: Мин. частота (тр/с)</label>
                   <input type="number" id="cfg-robot-freq" class="form-input" min="2" max="50" value="5">
@@ -2023,6 +2033,7 @@ export function renderDashboardHtml(): string {
             if (p.stochD) document.getElementById('cfg-stoch-d').value = p.stochD;
             if (p.nwBandwidth) document.getElementById('cfg-nw-bw').value = p.nwBandwidth;
             if (p.nwMult) document.getElementById('cfg-nw-mult').value = p.nwMult;
+            if (typeof p.nwRepaint === 'boolean') document.getElementById('cfg-nw-repaint').checked = p.nwRepaint;
           }
         }
       } catch (e) {}
@@ -2099,6 +2110,7 @@ export function renderDashboardHtml(): string {
         stochD: parseInt(document.getElementById('cfg-stoch-d').value, 10) || 3,
         nwBandwidth: parseFloat(document.getElementById('cfg-nw-bw').value) || 8.0,
         nwMult: parseFloat(document.getElementById('cfg-nw-mult').value) || 3.0,
+        nwRepaint: document.getElementById('cfg-nw-repaint') ? document.getElementById('cfg-nw-repaint').checked : true,
       };
 
       try {

@@ -252,7 +252,7 @@ export class GatewayWebSocketServer {
               rvolDays: typeof parsed.params.rvolDays === 'number' ? Math.max(2, Math.min(30, parsed.params.rvolDays)) : current.rvolDays,
               nwBandwidth: typeof parsed.params.nwBandwidth === 'number' ? Math.max(1, Math.min(50, parsed.params.nwBandwidth)) : (current.nwBandwidth ?? 8),
               nwMult: typeof parsed.params.nwMult === 'number' ? Math.max(0.5, Math.min(10, parsed.params.nwMult)) : (current.nwMult ?? 3),
-              nwRepaint: typeof parsed.params.nwRepaint === 'boolean' ? parsed.params.nwRepaint : (current.nwRepaint ?? false),
+              nwRepaint: typeof parsed.params.nwRepaint === 'boolean' ? parsed.params.nwRepaint : (current.nwRepaint ?? true),
               cciPeriod: typeof parsed.params.cciPeriod === 'number' ? Math.max(2, Math.min(100, parsed.params.cciPeriod)) : (current.cciPeriod ?? 20),
             };
             ws.indicatorParams = updated;

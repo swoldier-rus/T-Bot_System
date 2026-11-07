@@ -22,7 +22,7 @@ export function nadarayaWatsonEnvelope(
   prices: number[],
   bandwidth = 8,
   mult = 3,
-  repaint = false
+  repaint = true
 ): NadarayaWatsonResult {
   const len = prices.length;
   if (len < 2) {
@@ -37,17 +37,46 @@ export function nadarayaWatsonEnvelope(
   let out = 0;
   let mae = 0;
 
-  if (!repaint) {
-    // --- 1. Non-Repainting Causal Endpoint Method with True Residual MAE ---
-    // Efficiently compute causal Nadaraya-Watson endpoint curve for historical bars
+  if (repaint) {
+    // --- 1. LuxAlgo Standard Nadaraya-Watson Envelope (Exact TradingView Match) ---
+    // Kernel regression across up to 500 bars window (matching LuxAlgo Pine Script length = 500)
+    const cutoff = Math.min(lookback, Math.max(40, Math.ceil(h * 5)));
+    const weights = new Float64Array(cutoff + 1);
+    for (let k = 0; k <= cutoff; k++) {
+      weights[k] = Math.exp(-(k * k) / (2 * h * h));
+    }
+
+    let saeSum = 0;
+    for (let i = 0; i < lookback; i++) {
+      let sum = 0;
+      let sumw = 0;
+      const jMin = Math.max(0, i - cutoff);
+      const jMax = Math.min(lookback - 1, i + cutoff);
+      for (let j = jMin; j <= jMax; j++) {
+        const diff = Math.abs(i - j);
+        const w = weights[diff];
+        sum += prices[len - 1 - j] * w;
+        sumw += w;
+      }
+      const y = sumw > 0 ? sum / sumw : prices[len - 1 - i];
+      if (i === 0) {
+        out = y;
+      }
+      saeSum += Math.abs(prices[len - 1 - i] - y);
+    }
+    mae = (saeSum / lookback) * mult;
+  } else {
+    // --- 2. Non-Repainting Causal Endpoint Method across Full 500-bar Window ---
     const maxK = Math.min(lookback, Math.max(30, Math.ceil(h * 5)));
     const kernelWeights = new Float64Array(maxK + 1);
     for (let k = 0; k <= maxK; k++) {
       kernelWeights[k] = gaussianKernel(k, h);
     }
 
-    const yCausal = new Float64Array(len);
-    for (let t = 0; t < len; t++) {
+    const yCausal = new Float64Array(lookback);
+    let absDevSum = 0;
+    for (let idx = 0; idx < lookback; idx++) {
+      const t = len - lookback + idx;
       let num = 0;
       let den = 0;
       const curMaxK = Math.min(t, maxK);
@@ -56,39 +85,13 @@ export function nadarayaWatsonEnvelope(
         num += prices[t - k] * w;
         den += w;
       }
-      yCausal[t] = den > 0 ? num / den : prices[t];
+      const y = den > 0 ? num / den : prices[t];
+      yCausal[idx] = y;
+      absDevSum += Math.abs(prices[t] - y);
     }
 
-    out = yCausal[len - 1];
-
-    // Compute true Mean Absolute Error (MAE) of regression residuals across lookback window
-    const windowSize = Math.min(len, 100);
-    let absDevSum = 0;
-    for (let i = len - windowSize; i < len; i++) {
-      absDevSum += Math.abs(prices[i] - yCausal[i]);
-    }
-    mae = (absDevSum / windowSize) * mult;
-  } else {
-    // --- 2. Repainting Smoothing Mode (Full Nadaraya-Watson Kernel Regression) ---
-    const yValues: number[] = new Array(lookback);
-    let saeSum = 0;
-
-    for (let i = 0; i < lookback; i++) {
-      let sum = 0;
-      let sumw = 0;
-      for (let j = 0; j < lookback; j++) {
-        const w = gaussianKernel(i - j, h);
-        sum += prices[len - 1 - j] * w;
-        sumw += w;
-      }
-      const y = sumw > 0 ? sum / sumw : prices[len - 1 - i];
-      yValues[i] = y;
-      saeSum += Math.abs(prices[len - 1 - i] - y);
-    }
-
-    // yValues[0] is the current bar (i = 0)
-    out = yValues[0];
-    mae = (saeSum / lookback) * mult;
+    out = yCausal[lookback - 1];
+    mae = (absDevSum / lookback) * mult;
   }
 
   const mid = Number(out.toFixed(2));

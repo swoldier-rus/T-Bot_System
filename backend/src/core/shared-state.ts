@@ -22,7 +22,7 @@ export class SharedState implements ISharedStateReader {
 
   // Candles: Map<ticker, Map<timeframe, FixedRingBuffer<Candle>>>
   private readonly candles = new Map<string, Map<string, FixedRingBuffer<Candle>>>();
-  private readonly candleCapacity = 200;
+  private readonly candleCapacity = 500;
 
   // Instruments registry
   private readonly tickerToInstrument = new Map<string, Instrument>();

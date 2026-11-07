@@ -60,7 +60,7 @@ export class NwRsiModule extends BaseScannerModule {
       prices,
       this.params.nwBandwidth ?? 8,
       this.params.nwMult ?? 3,
-      this.params.nwRepaint ?? false
+      this.params.nwRepaint ?? true
     );
 
     const rsiVals = rsi(prices, this.params.rsiPeriod);
