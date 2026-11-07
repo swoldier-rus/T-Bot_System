@@ -45,7 +45,7 @@ export function createRestApp(
     message: string
   ) => {
     logIdCounter++;
-    logBuffer.push({
+    const entry: StreamLogEntry = {
       id: logIdCounter,
       time: Date.now(),
       type,
@@ -53,7 +53,9 @@ export function createRestApp(
       tagText,
       ticker,
       message,
-    });
+    };
+    logBuffer.push(entry);
+    eventBus.emit('dashboard:log', entry);
   };
 
   pushLog('system', 'tag-system', 'SYSTEM', 'LOCAL', 'Сервер MOEX Screener Pro запущен');

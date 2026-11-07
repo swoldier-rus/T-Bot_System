@@ -1,6 +1,7 @@
 import http from 'http';
 import { RawData, WebSocket, WebSocketServer } from 'ws';
 import { EventBus } from '../core/event-bus';
+import { ModuleManager } from '../core/module-manager';
 import { SharedState } from '../core/shared-state';
 import { StreamManager } from '../core/stream-manager';
 import { TelegramService } from '../core/telegram-service';
@@ -36,16 +37,29 @@ interface ClientMessage {
 export class GatewayWebSocketServer {
   private wss: WebSocketServer | null = null;
   private heartbeatInterval: NodeJS.Timeout | null = null;
+  private metricsInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly eventBus: EventBus,
     private readonly streamManager: StreamManager,
     private readonly sharedState: SharedState,
-    private readonly telegramService?: TelegramService
+    private readonly telegramService?: TelegramService,
+    private readonly moduleManager?: ModuleManager,
+    private readonly startTime: number = Date.now()
   ) {}
 
   public init(server: http.Server): void {
     this.wss = new WebSocketServer({ server, path: '/stream' });
+
+    // Listen to dashboard logs from rest-api
+    this.eventBus.on('dashboard:log', (entry: any) => {
+      this.broadcastDashboardLog(entry);
+    });
+
+    // Broadcast periodic metrics to dashboard clients every 1000ms
+    this.metricsInterval = setInterval(() => {
+      this.broadcastMetrics();
+    }, 1000);
 
     this.wss.on('connection', (ws: WebSocket, req: http.IncomingMessage) => {
       const extWs = ws as ExtendedWebSocket;
@@ -422,7 +436,70 @@ export class GatewayWebSocketServer {
     }
   }
 
+  public broadcastDashboardLog(entry: any): void {
+    if (!this.wss || this.wss.clients.size === 0) return;
+
+    const payload = JSON.stringify({
+      event: 'STREAM_LOG',
+      data: entry,
+    });
+
+    for (const client of this.wss.clients) {
+      const extWs = client as ExtendedWebSocket;
+      if (extWs.readyState === WebSocket.OPEN && extWs.subscribedSignals) {
+        extWs.send(payload);
+      }
+    }
+  }
+
+  private broadcastMetrics(): void {
+    if (!this.wss || this.wss.clients.size === 0) return;
+
+    let hasDashboardClient = false;
+    for (const client of this.wss.clients) {
+      if ((client as ExtendedWebSocket).subscribedSignals) {
+        hasDashboardClient = true;
+        break;
+      }
+    }
+    if (!hasDashboardClient) return;
+
+    const tgConfig = this.telegramService?.getConfig();
+    const telegramStatus = tgConfig
+      ? {
+          enabled: tgConfig.enabled,
+          hasBotToken: !!tgConfig.botToken,
+          hasChatId: !!tgConfig.chatId,
+          cooldownMinutes: tgConfig.cooldownMinutes,
+        }
+      : { enabled: false, hasBotToken: false, hasChatId: false, cooldownMinutes: 5 };
+
+    const payload = JSON.stringify({
+      event: 'METRICS_UPDATE',
+      data: {
+        connectionState: this.streamManager.getConnectionState(),
+        stats: this.streamManager.getStats(),
+        totalStocksInState: this.sharedState.getAllStockItems().length,
+        uptime: Math.floor((Date.now() - this.startTime) / 1000),
+        modules: this.moduleManager ? this.moduleManager.getStatuses() : [],
+        telegram: telegramStatus,
+      },
+    });
+
+    for (const client of this.wss.clients) {
+      const extWs = client as ExtendedWebSocket;
+      if (extWs.readyState === WebSocket.OPEN && extWs.subscribedSignals) {
+        extWs.send(payload);
+      }
+    }
+  }
+
   public async close(): Promise<void> {
+    if (this.metricsInterval) {
+      clearInterval(this.metricsInterval);
+      this.metricsInterval = null;
+    }
+
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;

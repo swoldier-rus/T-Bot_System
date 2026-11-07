@@ -63,7 +63,9 @@ async function bootstrap(): Promise<void> {
     eventBus,
     streamManager,
     sharedState,
-    telegramService
+    telegramService,
+    moduleManager,
+    startTime
   );
   wsServer.init(server);
 
