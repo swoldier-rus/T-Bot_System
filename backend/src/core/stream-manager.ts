@@ -58,6 +58,9 @@ export class StreamManager {
   private mockIntervalTimer: NodeJS.Timeout | null = null;
   private statsIntervalTimer: NodeJS.Timeout | null = null;
   private broadcastIntervalTimer: NodeJS.Timeout | null = null;
+  private priceRefreshTimer: NodeJS.Timeout | null = null;
+  private isInitialized = false;
+  private lastStreamErrorLog = 0;
 
   // Set of subscribed tickers
   private readonly subscribedTickers = new Set<string>();
@@ -166,6 +169,11 @@ export class StreamManager {
     if (this.broadcastIntervalTimer) {
       clearInterval(this.broadcastIntervalTimer);
       this.broadcastIntervalTimer = null;
+    }
+
+    if (this.priceRefreshTimer) {
+      clearInterval(this.priceRefreshTimer);
+      this.priceRefreshTimer = null;
     }
 
     // Unsubscribe all active gRPC subscriptions
@@ -318,6 +326,16 @@ export class StreamManager {
     this.connectionState = 'CONNECTING';
 
     try {
+      // 1. Clean up old api stream listeners if api already exists
+      if (this.api?.stream?.market) {
+        try {
+          (this.api.stream.market as any).emitter?.removeAllListeners();
+          await this.api.stream.market.cancel();
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+
       const api = new TinkoffInvestApi({
         token: env.TINKOFF_TOKEN,
         appName: env.TINKOFF_APP_NAME,
@@ -325,86 +343,103 @@ export class StreamManager {
       });
       this.api = api;
 
-      // Fetch all MOEX TQBR shares to populate full list of ~250 stocks
-      try {
-        const sharesRes = await api.instruments.shares({
-          instrumentStatus: InstrumentStatus.INSTRUMENT_STATUS_BASE,
-        });
-
-        if (sharesRes.instruments) {
-          const tqbrShares = sharesRes.instruments.filter(
-            (s) => s.classCode === 'TQBR' || s.currency === 'rub'
-          );
-
-          for (const s of tqbrShares) {
-            let logoUrl: string | undefined;
-            let logoColor: string | undefined;
-            if (s.brand?.logoName) {
-              const base = s.brand.logoName.replace(/\.png$/i, '');
-              logoUrl = `https://invest-brands.cdn-tinkoff.ru/${base}x160.png`;
-              logoColor = s.brand.logoBaseColor || undefined;
-            }
-
-            const inst: Instrument = {
-              figi: s.figi,
-              ticker: s.ticker,
-              name: s.name,
-              classCode: s.classCode,
-              lot: s.lot,
-              logoUrl,
-              logoColor,
-            };
-            this.sharedState.setInstrument(inst);
-          }
-          console.info(`📋 Loaded ${tqbrShares.length} MOEX TQBR instruments from T-Bank API`);
-        }
-      } catch (err: any) {
-        console.warn('⚠️ Could not load instruments list via API:', err.message);
+      // Disable internal autoReconnect in TinkoffInvestApi to avoid competing
+      // with StreamManager's own exponential backoff reconnection loop
+      if ((api.stream.market as any).options) {
+        (api.stream.market as any).options.autoReconnect = false;
       }
 
-      // Fetch Close Prices for percentage calculation
-      try {
-        const allInst = this.sharedState.getAllInstruments();
-        const closeResp = await api.marketdata.getClosePrices({
-          instruments: allInst.map((i) => ({ instrumentId: i.figi })),
-        });
-        if (closeResp.closePrices) {
-          for (const cp of closeResp.closePrices) {
-            const price = Helpers.toNumber(cp.price);
-            if (price && price > 0) {
-              this.sharedState.setClosePrice(cp.figi, price);
+      // 2. Initial bootstrap: fetch instruments, prices and warmup only once on startup
+      if (!this.isInitialized) {
+        // Fetch all MOEX TQBR shares to populate full list of ~250 stocks
+        try {
+          const sharesRes = await api.instruments.shares({
+            instrumentStatus: InstrumentStatus.INSTRUMENT_STATUS_BASE,
+          });
+
+          if (sharesRes.instruments) {
+            const tqbrShares = sharesRes.instruments.filter(
+              (s) => s.classCode === 'TQBR' || s.currency === 'rub'
+            );
+
+            for (const s of tqbrShares) {
+              let logoUrl: string | undefined;
+              let logoColor: string | undefined;
+              if (s.brand?.logoName) {
+                const base = s.brand.logoName.replace(/\.png$/i, '');
+                logoUrl = `https://invest-brands.cdn-tinkoff.ru/${base}x160.png`;
+                logoColor = s.brand.logoBaseColor || undefined;
+              }
+
+              const inst: Instrument = {
+                figi: s.figi,
+                ticker: s.ticker,
+                name: s.name,
+                classCode: s.classCode,
+                lot: s.lot,
+                logoUrl,
+                logoColor,
+              };
+              this.sharedState.setInstrument(inst);
+            }
+            console.info(`📋 Loaded ${tqbrShares.length} MOEX TQBR instruments from T-Bank API`);
+          }
+        } catch (err: any) {
+          console.warn('⚠️ Could not load instruments list via API:', err.message);
+        }
+
+        // Fetch Close Prices for percentage calculation
+        try {
+          const allInst = this.sharedState.getAllInstruments();
+          const closeResp = await api.marketdata.getClosePrices({
+            instruments: allInst.map((i) => ({ instrumentId: i.figi })),
+          });
+          if (closeResp.closePrices) {
+            for (const cp of closeResp.closePrices) {
+              const price = Helpers.toNumber(cp.price);
+              if (price && price > 0) {
+                this.sharedState.setClosePrice(cp.figi, price);
+              }
             }
           }
+        } catch (e: any) {
+          console.warn('⚠️ Could not load close prices:', e.message);
         }
-      } catch (e: any) {
-        console.warn('⚠️ Could not load close prices:', e.message);
-      }
 
-      // Fetch Last Traded Prices so every stock has current real market price immediately
-      try {
-        const allInst = this.sharedState.getAllInstruments();
-        const figis = allInst.map((i) => i.figi);
-        const lastPricesResp = await api.marketdata.getLastPrices({
-          figi: figis,
-          instrumentId: figis,
-          lastPriceType: LastPriceType.LAST_PRICE_EXCHANGE ?? 1,
-        });
-        if (lastPricesResp.lastPrices) {
-          for (const lp of lastPricesResp.lastPrices) {
-            const price = Helpers.toNumber(lp.price);
-            if (price && price > 0) {
-              this.sharedState.setLastPrice(lp.figi, price);
+        // Fetch Last Traded Prices so every stock has current real market price immediately
+        try {
+          const allInst = this.sharedState.getAllInstruments();
+          const figis = allInst.map((i) => i.figi);
+          const lastPricesResp = await api.marketdata.getLastPrices({
+            figi: figis,
+            instrumentId: figis,
+            lastPriceType: LastPriceType.LAST_PRICE_EXCHANGE ?? 1,
+          });
+          if (lastPricesResp.lastPrices) {
+            for (const lp of lastPricesResp.lastPrices) {
+              const price = Helpers.toNumber(lp.price);
+              if (price && price > 0) {
+                this.sharedState.setLastPrice(lp.figi, price);
+              }
             }
+            console.info(
+              `💰 Loaded last traded prices for ${lastPricesResp.lastPrices.length} instruments`
+            );
           }
-          console.info(
-            `💰 Loaded last traded prices for ${lastPricesResp.lastPrices.length} instruments`
-          );
+        } catch (err: any) {
+          console.warn('⚠️ Could not load last prices:', err.message);
         }
-      } catch (err: any) {
-        console.warn('⚠️ Could not load last prices:', err.message);
+
+        // Warmup historical candles for immediate RSI & Stochastic calculation
+        await this.warmupHistoricalData(api);
+
+        // Start periodic refresh of last & close prices for all instruments
+        this.startPriceRefreshTimer();
+
+        this.isInitialized = true;
       }
 
-      // Stream listeners
+      // 3. Stream event listeners
       api.stream.market.on('open', () => {
         this.reconnectAttempt = 0;
         this.connectionState = 'CONNECTED';
@@ -427,7 +462,11 @@ export class StreamManager {
       });
 
       api.stream.market.on('error', (error: Error) => {
-        console.error('⚠️ [gRPC Stream Error]:', error.message);
+        const now = Date.now();
+        if (now - this.lastStreamErrorLog > 10000) {
+          this.lastStreamErrorLog = now;
+          console.error('⚠️ [gRPC Stream Error]:', error.message);
+        }
       });
 
       // Stream market data router
@@ -443,20 +482,14 @@ export class StreamManager {
         }
       });
 
-      // Warmup historical candles for immediate RSI & Stochastic calculation
-      await this.warmupHistoricalData(api);
-
-      // Start periodic refresh of last & close prices for all instruments
-      this.startPriceRefreshTimer();
-
       // Ensure bidirectional stream is open
       (api.stream.market as any).ensureConnected();
 
-      // Perform initial subscription for target tickers
-      const initialTickers = this.subscribedTickers.size > 0
-        ? this.subscribedTickers
-        : new Set(env.DEFAULT_TICKERS);
-      const instrumentsToSub = this.getInstrumentsForTickers(initialTickers);
+      // Perform subscription for active target tickers
+      const targetTickers = this.currentSubscribed.size > 0
+        ? this.currentSubscribed
+        : (this.subscribedTickers.size > 0 ? this.subscribedTickers : new Set(this.databaseService.getEffectiveDefaultTickers(env.DEFAULT_TICKERS)));
+      const instrumentsToSub = this.getInstrumentsForTickers(targetTickers);
       if (instrumentsToSub.length > 0) {
         this.sendGrpcSubscribe(instrumentsToSub);
         this.currentSubscribed = new Set(instrumentsToSub.map((i) => i.ticker));
@@ -692,7 +725,8 @@ export class StreamManager {
   }
 
   private startPriceRefreshTimer(): void {
-    setInterval(async () => {
+    if (this.priceRefreshTimer) return;
+    this.priceRefreshTimer = setInterval(async () => {
       if (this.connectionState !== 'CONNECTED' || !this.api) return;
       try {
         const allInst = this.sharedState.getAllInstruments();
@@ -735,8 +769,11 @@ export class StreamManager {
     if (this.reconnectTimer) return;
 
     this.reconnectAttempt++;
-    const delaySec = Math.min(Math.pow(2, this.reconnectAttempt - 1), 30);
-    const delayMs = delaySec * 1000;
+    // Exponential backoff: 2s, 4s, 8s, 16s, 32s, max 60s
+    const delaySec = Math.min(Math.pow(2, Math.min(this.reconnectAttempt, 5)), 60);
+    const delayMs = Math.max(delaySec * 1000, 2000);
+
+    console.info(`🔄 Scheduling gRPC reconnect attempt #${this.reconnectAttempt} in ${delaySec}s...`);
 
     this.eventBus.emit('stream:reconnecting', {
       attempt: this.reconnectAttempt,
@@ -745,7 +782,12 @@ export class StreamManager {
 
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null;
-      await this.connectGrpc();
+      try {
+        await this.connectGrpc();
+      } catch (err: any) {
+        console.error('❌ Reconnect attempt failed:', err?.message || err);
+        this.scheduleReconnect();
+      }
     }, delayMs);
   }
 

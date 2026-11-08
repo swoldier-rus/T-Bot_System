@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import http from 'http';
 import { WebSocket } from 'ws';
+import { DatabaseService } from '../src/core/database-service';
 import { EventBus } from '../src/core/event-bus';
 import { SharedState } from '../src/core/shared-state';
 import { StreamManager } from '../src/core/stream-manager';
@@ -19,7 +20,8 @@ describe('Dynamic Subscription Aggregator (MOEX Screener Pro)', () => {
   beforeEach(async () => {
     eventBus = new EventBus();
     sharedState = new SharedState(eventBus);
-    streamManager = new StreamManager(eventBus, sharedState);
+    const testDb = new DatabaseService({ dbPath: ':memory:' });
+    streamManager = new StreamManager(eventBus, sharedState, testDb);
     gatewayWs = new GatewayWebSocketServer(eventBus, streamManager, sharedState);
 
     server = http.createServer();
