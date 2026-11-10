@@ -308,6 +308,88 @@ export function createRestApp(
   app.post('/default-tickers/reset', handleResetDefaultTickers);
   app.post('/api/default-tickers/reset', handleResetDefaultTickers);
 
+  // GET /favorites - Get favorites from T-Bank InstrumentsService.GetFavorites filtered to MOEX TQBR
+  const handleGetFavorites = async (_req: Request, res: Response) => {
+    try {
+      const favInstruments = await streamManager.getFavorites();
+      const tickers = favInstruments.map((i) => i.ticker);
+
+      const instruments = favInstruments.map((inst) => {
+        const stock = sharedState.getStockItem(inst.ticker);
+        return {
+          ticker: inst.ticker,
+          name: inst.name || stock?.description || inst.ticker,
+          classCode: inst.classCode || 'TQBR',
+          price: stock?.price ?? null,
+          change: stock?.change ?? 0,
+          logoUrl: inst.logoUrl || stock?.logoUrl,
+          logoColor: inst.logoColor || stock?.logoColor,
+        };
+      });
+
+      res.json({
+        status: 'ok',
+        tickers,
+        count: tickers.length,
+        instruments,
+        timestamp: Date.now(),
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        status: 'error',
+        error: err?.message || 'Failed to fetch favorites from T-Bank API',
+        tickers: [],
+        count: 0,
+        instruments: [],
+        timestamp: Date.now(),
+      });
+    }
+  };
+
+  app.get('/favorites', handleGetFavorites);
+  app.get('/api/favorites', handleGetFavorites);
+
+  // POST /favorites/apply - Fetch favorites and apply them directly as the default universe in SQLite
+  const handleApplyFavorites = async (_req: Request, res: Response) => {
+    try {
+      const favInstruments = await streamManager.getFavorites();
+      const tickers = favInstruments.map((i) => i.ticker);
+
+      if (tickers.length === 0) {
+        res.status(404).json({
+          status: 'error',
+          error: 'No MOEX TQBR shares found in T-Bank favorites',
+          tickers: [],
+          count: 0,
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      await streamManager.updateDefaultTickers(tickers);
+      const dbService = streamManager.getDatabaseService();
+      const effective = dbService.getEffectiveDefaultTickers(env.DEFAULT_TICKERS);
+
+      res.json({
+        status: 'ok',
+        tickers: effective,
+        count: effective.length,
+        isFromEnv: !dbService.hasCustomDefaultTickers(),
+        subscribedCount: streamManager.getSubscribedTickers().length,
+        timestamp: Date.now(),
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        status: 'error',
+        error: err?.message || 'Failed to apply favorites to default universe',
+        timestamp: Date.now(),
+      });
+    }
+  };
+
+  app.post('/favorites/apply', handleApplyFavorites);
+  app.post('/api/favorites/apply', handleApplyFavorites);
+
   // POST /modules/:id/toggle
   app.post('/modules/:id/toggle', (req: Request, res: Response) => {
     const rawId = req.params.id;

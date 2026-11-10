@@ -109,6 +109,63 @@ export class StreamManager {
     this.eventBus.emit('system:default_tickers_updated', env.DEFAULT_TICKERS);
   }
 
+  /**
+   * Fetches favorite instruments from T-Bank API via InstrumentsService.GetFavorites.
+   * Filters the returned instruments strictly to MOEX (TQBR) shares present in the screener catalog.
+   */
+  public async getFavorites(): Promise<Instrument[]> {
+    if (!this.api) {
+      // Mock mode or not connected yet: return known blue chips from shared state as mock favorites
+      const topTickers = ['SBER', 'GAZP', 'LKOH', 'GMKN', 'NVTK', 'ROSN', 'YDEX', 'T'];
+      const mockFavs = topTickers
+        .map((t) => this.sharedState.getInstrument(t))
+        .filter((inst): inst is Instrument => !!inst);
+      return mockFavs;
+    }
+
+    try {
+      const resp = await this.api.instruments.getFavorites({});
+      const favList = resp.favoriteInstruments || [];
+
+      const result: Instrument[] = [];
+      const seenTickers = new Set<string>();
+
+      for (const item of favList) {
+        const ticker = item.ticker ? item.ticker.trim().toUpperCase() : '';
+        if (!ticker || seenTickers.has(ticker)) continue;
+
+        // Check if instrument is a known MOEX TQBR share in shared state
+        const catalogInst = this.sharedState.getInstrument(ticker);
+        if (catalogInst && (catalogInst.classCode === 'TQBR' || item.classCode === 'TQBR')) {
+          seenTickers.add(ticker);
+          result.push(catalogInst);
+          continue;
+        }
+
+        // If not in sharedState yet, only include if classCode is explicitly TQBR
+        if (item.classCode === 'TQBR') {
+          seenTickers.add(ticker);
+          const inst: Instrument = {
+            figi: item.figi,
+            ticker,
+            name: item.name || ticker,
+            classCode: 'TQBR',
+          };
+          this.sharedState.setInstrument(inst);
+          result.push(inst);
+        }
+      }
+
+      console.info(
+        `💛 Loaded ${result.length} MOEX TQBR favorite instruments from T-Bank API (out of ${favList.length} total favorites)`
+      );
+      return result;
+    } catch (err: any) {
+      console.warn('⚠️ Could not load favorites from T-Bank API:', err?.message || err);
+      return [];
+    }
+  }
+
   public getConnectionState(): ConnectionState {
     return this.connectionState;
   }

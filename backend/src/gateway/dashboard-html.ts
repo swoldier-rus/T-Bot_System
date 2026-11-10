@@ -1153,6 +1153,9 @@ export function renderDashboardHtml(): string {
         </div>
 
         <div class="universe-actions">
+          <button type="button" class="btn btn-secondary" id="btn-def-select-favorites" title="Загрузить и применить Избранное из вашего профиля Т-Банка">
+            💛 Избранное Т-Банка
+          </button>
           <button type="button" class="btn btn-secondary" id="btn-def-select-top20" title="Выбрать 20 самых ликвидных акций MOEX">
             ⭐ Топ-20
           </button>
@@ -2155,6 +2158,50 @@ export function renderDashboardHtml(): string {
         currentUniverseFilter = pill.getAttribute('data-filter') || 'all';
         renderUniverseGrid();
       });
+    });
+
+    document.getElementById('btn-def-select-favorites')?.addEventListener('click', async () => {
+      const indicator = document.getElementById('def-auto-save-indicator');
+      if (indicator) {
+        indicator.style.display = 'inline';
+        indicator.style.color = 'var(--orange)';
+        indicator.textContent = '💛 Загрузка избранного из Т-Банка...';
+      }
+      try {
+        const res = await fetch('/api/favorites');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.tickers) && data.tickers.length > 0) {
+            selectedDefaultTickers = new Set(data.tickers);
+            updateUniverseCounters(true);
+            renderUniverseGrid();
+            saveDefaultTickersDebounced();
+            if (indicator) {
+              indicator.style.color = 'var(--green)';
+              indicator.textContent = \`✓ Применено Избранное (\${data.tickers.length} акций)\`;
+              setTimeout(() => { indicator.style.display = 'none'; }, 2500);
+            }
+          } else {
+            if (indicator) {
+              indicator.style.color = '#ffb74d';
+              indicator.textContent = '⚠️ В профиле Т-Банка нет акций MOEX (TQBR)';
+              setTimeout(() => { indicator.style.display = 'none'; }, 3500);
+            }
+          }
+        } else {
+          if (indicator) {
+            indicator.style.color = 'var(--red)';
+            indicator.textContent = '❌ Ошибка получения избранного';
+            setTimeout(() => { indicator.style.display = 'none'; }, 3000);
+          }
+        }
+      } catch (e) {
+        if (indicator) {
+          indicator.style.color = 'var(--red)';
+          indicator.textContent = '❌ Ошибка сети';
+          setTimeout(() => { indicator.style.display = 'none'; }, 3000);
+        }
+      }
     });
 
     document.getElementById('btn-def-select-top20')?.addEventListener('click', () => {

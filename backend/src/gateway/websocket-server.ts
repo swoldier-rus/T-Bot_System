@@ -30,7 +30,9 @@ interface ClientMessage {
     | 'SEND_TELEGRAM'
     | 'GET_DEFAULT_TICKERS'
     | 'SET_DEFAULT_TICKERS'
-    | 'RESET_DEFAULT_TICKERS';
+    | 'RESET_DEFAULT_TICKERS'
+    | 'GET_FAVORITES'
+    | 'APPLY_FAVORITES';
   tickers?: string[];
   listMode?: string;
   params?: Partial<IndicatorParams>;
@@ -389,6 +391,57 @@ export class GatewayWebSocketServer {
                 tickers: env.DEFAULT_TICKERS,
                 isFromEnv: true,
                 success: true,
+              },
+              timestamp: Date.now(),
+            })
+          );
+          break;
+        }
+
+        case 'GET_FAVORITES': {
+          const favInstruments = await this.streamManager.getFavorites();
+          const tickers = favInstruments.map((i) => i.ticker);
+          const instruments = favInstruments.map((inst) => {
+            const stock = this.sharedState.getStockItem(inst.ticker);
+            return {
+              ticker: inst.ticker,
+              name: inst.name || stock?.description || inst.ticker,
+              classCode: inst.classCode || 'TQBR',
+              price: stock?.price ?? null,
+              change: stock?.change ?? 0,
+              logoUrl: inst.logoUrl || stock?.logoUrl,
+              logoColor: inst.logoColor || stock?.logoColor,
+            };
+          });
+          ws.send(
+            JSON.stringify({
+              event: 'FAVORITES',
+              data: {
+                tickers,
+                count: tickers.length,
+                instruments,
+              },
+              timestamp: Date.now(),
+            })
+          );
+          break;
+        }
+
+        case 'APPLY_FAVORITES': {
+          const favInstruments = await this.streamManager.getFavorites();
+          const tickers = favInstruments.map((i) => i.ticker);
+          if (tickers.length > 0) {
+            await this.streamManager.updateDefaultTickers(tickers);
+          }
+          const dbService = this.streamManager.getDatabaseService();
+          const effective = dbService.getEffectiveDefaultTickers(env.DEFAULT_TICKERS);
+          ws.send(
+            JSON.stringify({
+              event: 'FAVORITES_APPLIED',
+              data: {
+                tickers: effective,
+                count: effective.length,
+                success: tickers.length > 0,
               },
               timestamp: Date.now(),
             })
