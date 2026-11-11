@@ -19,6 +19,106 @@ const initialInstruments = [
   { ticker: 'MOEX', fullName: 'Московская Биржа ПАО', color: '#E11D48', bluechip: false, price: 218.70, change: -1.62, volDiffBase: 19.8, volRubMln: 8900, rsi: 71.5, nw: 'SELL', cci: 112, stch: 79.2 },
 ];
 
+const BLUE_CHIPS = new Set([
+  'SBER', 'SBERP', 'GAZP', 'LKOH', 'GMKN', 'NVTK', 'YDEX', 'YNDX', 'ROSN',
+  'MGNT', 'TATN', 'TATNP', 'MTSS', 'CHMF', 'NLMK', 'MAGN', 'ALRS', 'PLZL',
+  'IRAO', 'VTBR', 'SNGS', 'SNGSP', 'TRNFP', 'MOEX', 'AFLT', 'PHOR', 'T', 'SVCB'
+]);
+
+const TF_MAP = {
+  '1м': '5m',
+  '5м': '5m',
+  '15м': '15m',
+  '1ч': '1h',
+  '4ч': '4h',
+  'Д': '1d',
+};
+
+function applyTimeframe(item, tfLabel) {
+  if (!item || !item.tf) return;
+  const tfKey = TF_MAP[tfLabel] || '15m';
+  const d = item.tf[tfKey];
+  if (!d) return;
+
+  if (typeof d.rsi === 'number') {
+    item.rsi = Number(d.rsi.toFixed(1));
+  }
+  if (typeof d.k === 'number') {
+    item.stch = Number(d.k.toFixed(1));
+  }
+  if (typeof d.d === 'number') {
+    item.stchD = Number(d.d.toFixed(1));
+  }
+  if (typeof d.cci === 'number') {
+    item.cci = Math.round(d.cci);
+  }
+  if (d.nw && d.nw.signal) {
+    item.nw = d.nw.signal;
+  }
+}
+
+export function upsertBackendStocks(stockList) {
+  if (!Array.isArray(stockList) || stockList.length === 0) return;
+  const currentTf = timeframe.value;
+
+  stockList.forEach(raw => {
+    let match = instruments.find(i => i.ticker === raw.ticker);
+    const isBluechip = BLUE_CHIPS.has(raw.ticker);
+    const logoColor = raw.logoColor || '#336FEE';
+
+    if (!match) {
+      match = reactive({
+        ticker: raw.ticker,
+        fullName: raw.description || raw.name || raw.ticker,
+        color: logoColor,
+        logoUrl: raw.logoUrl || '',
+        logoColor: logoColor,
+        textDark: false,
+        bluechip: isBluechip,
+        price: raw.price || 0,
+        change: raw.change || 0,
+        volDiffBase: raw.rvol ? Math.round((raw.rvol - 1.0) * 100) : 0,
+        volRubMln: raw.vol ? Math.round(raw.vol * (raw.price || 1) / 1000000) : 0,
+        rsi: 50,
+        nw: 'NEUTRAL',
+        cci: 0,
+        stch: 50,
+        stchD: 50,
+        tf: raw.tf || {},
+      });
+      applyTimeframe(match, currentTf);
+      instruments.push(match);
+    } else {
+      if (raw.price !== undefined) match.price = raw.price;
+      if (raw.change !== undefined) match.change = raw.change;
+      if (raw.logoUrl) match.logoUrl = raw.logoUrl;
+      if (raw.logoColor) match.logoColor = raw.logoColor;
+      if (raw.description) match.fullName = raw.description;
+      if (raw.rvol !== undefined) match.volDiffBase = Math.round((raw.rvol - 1.0) * 100);
+      if (raw.vol !== undefined) match.volRubMln = Math.round(raw.vol * (raw.price || match.price || 1) / 1000000);
+      if (raw.tf) {
+        match.tf = { ...match.tf, ...raw.tf };
+      }
+      applyTimeframe(match, currentTf);
+    }
+  });
+}
+
+export function updateSingleStock(raw) {
+  if (!raw || !raw.ticker) return;
+  let match = instruments.find(i => i.ticker === raw.ticker);
+  if (!match) return;
+
+  if (raw.price !== undefined) match.price = raw.price;
+  if (raw.change !== undefined) match.change = raw.change;
+  if (raw.rvol !== undefined) match.volDiffBase = Math.round((raw.rvol - 1.0) * 100);
+  if (raw.vol !== undefined) match.volRubMln = Math.round(raw.vol * (raw.price || match.price || 1) / 1000000);
+  if (raw.tf) {
+    match.tf = { ...match.tf, ...raw.tf };
+  }
+  applyTimeframe(match, timeframe.value);
+}
+
 const instruments = reactive(JSON.parse(JSON.stringify(initialInstruments)));
 const timeframe = ref('15м');
 const assetFilter = ref('all');
@@ -35,15 +135,6 @@ const groupColorIdx = ref(0);
 const linkGroupColor = computed(() => groupColors[groupColorIdx.value]);
 
 const lastNotified = {};
-
-const tfMultipliers = {
-  '1м': 0.82,
-  '5м': 0.91,
-  '15м': 1.00,
-  '1ч': 1.08,
-  '4ч': 1.15,
-  'Д': 1.24,
-};
 
 export function useScreenerState() {
   const { favorites } = useFavorites();
@@ -68,16 +159,8 @@ export function useScreenerState() {
 
   function selectTimeframe(tf) {
     timeframe.value = tf;
-    const mult = tfMultipliers[tf] || 1;
     instruments.forEach(item => {
-      const drift = (Math.random() - 0.49) * 5 * mult;
-      item.rsi = Math.max(12, Math.min(88, Number((item.rsi + drift).toFixed(1))));
-      item.stch = Math.max(6, Math.min(95, Number((item.stch + drift * 1.2).toFixed(1))));
-      item.cci = Math.max(-210, Math.min(210, Math.round(item.cci + drift * 6)));
-
-      if (item.rsi <= 31) item.nw = 'BUY';
-      else if (item.rsi >= 69) item.nw = 'SELL';
-      else if (Math.random() > 0.65) item.nw = 'NEUTRAL';
+      applyTimeframe(item, tf);
     });
   }
 
@@ -220,6 +303,11 @@ export function useScreenerState() {
     };
   });
 
+  function getActiveTickers() {
+    const visible = filteredAndSortedRows.value.slice(0, 60).map(r => r.ticker);
+    return visible.length > 0 ? visible : ['SBER', 'GAZP', 'LKOH', 'GMKN', 'NVTK'];
+  }
+
   return {
     instruments,
     timeframe,
@@ -239,5 +327,6 @@ export function useScreenerState() {
     resetFilters,
     cycleLinkGroupColor,
     toggleEditFavoritesMode,
+    getActiveTickers,
   };
 }

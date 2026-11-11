@@ -1,5 +1,5 @@
-import { ref, onMounted, onUnmounted, watch } from 'vue';
-import { useScreenerState } from './useScreenerState';
+import { ref, watch } from 'vue';
+import { useScreenerState, upsertBackendStocks, updateSingleStock } from './useScreenerState';
 import { useFavorites } from './useFavorites';
 
 const serverOnline = ref(true);
@@ -7,64 +7,55 @@ const realConnected = ref(false);
 const serverPingLabel = ref('MOEX · 14 мс');
 
 export function useWebSocket() {
-  const { instruments, assetFilter } = useScreenerState();
-  const { favorites, getFavoritesArray } = useFavorites();
+  const { assetFilter, filteredAndSortedRows, getActiveTickers } = useScreenerState();
+  const { getFavoritesArray } = useFavorites();
   let ws = null;
   let simInterval = null;
-  let pingInterval = null;
+  let universeDebounceTimer = null;
 
-  function syncFavoritesWithBackend() {
+  function sendActiveUniverse() {
     if (ws && ws.readyState === WebSocket.OPEN) {
+      const isFav = assetFilter.value === 'favorites';
+      const tickers = isFav ? getFavoritesArray() : getActiveTickers();
       ws.send(JSON.stringify({
         action: 'SET_ACTIVE_UNIVERSE',
-        listMode: 'favorites',
-        tickers: getFavoritesArray(),
+        listMode: isFav ? 'favorites' : 'all_stocks',
+        tickers: tickers && tickers.length > 0 ? tickers : ['SBER', 'GAZP', 'LKOH', 'GMKN', 'NVTK'],
       }));
     }
   }
 
-  // Watch for assetFilter changes
-  watch(assetFilter, (newVal) => {
-    if (newVal === 'favorites') {
-      syncFavoritesWithBackend();
-    } else {
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ action: 'SET_ACTIVE_UNIVERSE', listMode: 'all_stocks' }));
-      }
-    }
+  // Watch for filter/search/universe changes and debounced delta sync
+  watch([assetFilter, () => filteredAndSortedRows.value.length], () => {
+    if (universeDebounceTimer) clearTimeout(universeDebounceTimer);
+    universeDebounceTimer = setTimeout(() => {
+      sendActiveUniverse();
+    }, 250);
   });
 
   function toggleServerConnection() {
     serverOnline.value = !serverOnline.value;
     if (!serverOnline.value) {
       serverPingLabel.value = 'Нет связи';
+      if (ws) {
+        ws.close();
+        ws = null;
+      }
     } else {
-      serverPingLabel.value = realConnected.value ? 'WS 3001 · 0ms' : 'MOEX · 14 мс';
+      initBackendWs();
     }
   }
 
-  function simulateTick() {
-    if (!serverOnline.value) return;
-    const randomIdx = Math.floor(Math.random() * instruments.length);
-    const item = instruments[randomIdx];
-    if (!item) return;
-
-    const pctDelta = (Math.random() - 0.49) * 0.35;
-    item.price = Math.max(1, Number((item.price * (1 + pctDelta / 100)).toFixed(2)));
-    item.change = Number((item.change + pctDelta * 0.4).toFixed(2));
-    item.volDiffBase = Number((item.volDiffBase + (Math.random() - 0.46) * 2.2).toFixed(1));
-
-    item.rsi = Math.max(14, Math.min(86, Number((item.rsi + (Math.random() - 0.5) * 1.4).toFixed(1))));
-    item.stch = Math.max(8, Math.min(94, Number((item.stch + (Math.random() - 0.5) * 1.8).toFixed(1))));
-    item.cci = Math.max(-195, Math.min(195, Math.round(item.cci + (Math.random() - 0.5) * 7)));
-
-    if (!realConnected.value) {
-      const ping = 11 + Math.floor(Math.random() * 8);
-      serverPingLabel.value = `MOEX · ${ping} мс`;
-    }
+  function simulateTickFallback() {
+    // Fallback simulation only when backend is completely unavailable
+    if (!serverOnline.value || realConnected.value) return;
+    const ping = 11 + Math.floor(Math.random() * 8);
+    serverPingLabel.value = `MOEX · ${ping} мс (симуляция)`;
   }
 
   async function initBackendWs() {
+    if (!serverOnline.value) return;
+
     let wsPort = 3001;
     if (typeof window.electronAPI !== 'undefined' && window.electronAPI.getBackendStatus) {
       try {
@@ -76,43 +67,49 @@ export function useWebSocket() {
     const wsUrl = `ws://127.0.0.1:${wsPort}/stream`;
 
     function connect() {
+      if (!serverOnline.value) return;
       try {
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
           realConnected.value = true;
           serverOnline.value = true;
-          serverPingLabel.value = `WS ${wsPort} · 0ms`;
-          if (assetFilter.value === 'favorites') {
-            syncFavoritesWithBackend();
-          } else {
-            ws.send(JSON.stringify({ action: 'SET_ACTIVE_UNIVERSE', listMode: 'all_stocks' }));
+          serverPingLabel.value = `WS ${wsPort} · Онлайн`;
+
+          // Stop fallback mock simulation when real backend is connected
+          if (simInterval) {
+            clearInterval(simInterval);
+            simInterval = null;
           }
+
+          sendActiveUniverse();
         };
 
         ws.onmessage = (event) => {
           try {
             const msg = JSON.parse(event.data);
+
             if (msg.event === 'SNAPSHOT' && Array.isArray(msg.data)) {
-              msg.data.forEach(item => {
-                const match = instruments.find(i => i.ticker === item.ticker);
-                if (match) {
-                  if (item.logoUrl) match.logoUrl = item.logoUrl;
-                  if (item.logoColor) match.logoColor = item.logoColor;
-                  if (item.price) match.price = item.price;
-                  if (item.change !== undefined) match.change = item.change;
-                  if (item.description) match.fullName = item.description;
+              upsertBackendStocks(msg.data);
+            } else if (msg.event === 'TICKER_UPDATE' || msg.event === 'CANDLE_TICK') {
+              if (msg.data) {
+                updateSingleStock(msg.data);
+              }
+            } else if (msg.type === 'ticker' || msg.type === 'candle') {
+              updateSingleStock(msg);
+            } else if (msg.event === 'SCANNER_SIGNAL') {
+              const s = msg.data;
+              if (s && s.ticker) {
+                const dir = s.direction === 'BUY' ? '🟢 ПОКУПКА' : (s.direction === 'SELL' ? '🔴 ПРОДАЖА' : 'СИГНАЛ');
+                const title = `${dir}: ${s.ticker}`;
+                const body = s.message || `Сигнал ${s.direction} на MOEX`;
+                if (typeof window.triggerDesktopAlert === 'function') {
+                  window.triggerDesktopAlert(title, body);
                 }
-              });
-            } else if (msg.type === 'ticker' || msg.type === 'candle' || msg.ticker) {
-              const match = instruments.find(i => i.ticker === msg.ticker);
-              if (match) {
-                if (msg.price) match.price = msg.price;
-                if (msg.change !== undefined) match.change = msg.change;
-                if (msg.rsi !== undefined) match.rsi = msg.rsi;
-                if (msg.nw) match.nw = msg.nw;
-                if (msg.cci !== undefined) match.cci = msg.cci;
-                if (msg.stch !== undefined) match.stch = msg.stch;
+              }
+            } else if (msg.event === 'METRICS_UPDATE') {
+              if (msg.data && typeof msg.data.subscribedCount === 'number') {
+                serverPingLabel.value = `WS ${wsPort} · ${msg.data.subscribedCount} акц.`;
               }
             }
           } catch (e) {}
@@ -124,6 +121,7 @@ export function useWebSocket() {
 
         ws.onclose = () => {
           realConnected.value = false;
+          serverPingLabel.value = 'Переподключение...';
           setTimeout(connect, 3000);
         };
       } catch (e) {
@@ -137,11 +135,19 @@ export function useWebSocket() {
 
   function start() {
     initBackendWs();
-    simInterval = setInterval(simulateTick, 1600);
+    // Only schedule fallback ping if offline after initial grace period
+    simInterval = setInterval(simulateTickFallback, 3000);
   }
 
   function stop() {
-    if (simInterval) clearInterval(simInterval);
+    if (simInterval) {
+      clearInterval(simInterval);
+      simInterval = null;
+    }
+    if (universeDebounceTimer) {
+      clearTimeout(universeDebounceTimer);
+      universeDebounceTimer = null;
+    }
     if (ws) {
       ws.close();
       ws = null;
@@ -153,7 +159,7 @@ export function useWebSocket() {
     realConnected,
     serverPingLabel,
     toggleServerConnection,
-    syncFavoritesWithBackend,
+    syncFavoritesWithBackend: sendActiveUniverse,
     start,
     stop,
   };
