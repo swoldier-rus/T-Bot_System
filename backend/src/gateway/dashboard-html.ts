@@ -1174,13 +1174,15 @@ export function renderDashboardHtml(): string {
                 <th>NW Upper</th>
                 <th>Положение в канале</th>
                 <th>RSI</th>
+                <th>Stoch (%K / %D)</th>
+                <th>CCI</th>
                 <th>Confluence Сигнал</th>
                 <th>График</th>
               </tr>
             </thead>
             <tbody id="nw-body">
               <tr>
-                <td colspan="10" style="text-align:center; color:var(--text-muted); padding:30px;">
+                <td colspan="12" style="text-align:center; color:var(--text-muted); padding:30px;">
                   Загрузка данных Nadaraya-Watson Envelope...
                 </td>
               </tr>
@@ -2066,7 +2068,7 @@ export function renderDashboardHtml(): string {
 
     function renderNwTable() {
       if (!stockItemsSnapshot || stockItemsSnapshot.length === 0) {
-        nwBody.innerHTML = '<tr><td colspan="10" style="text-align:center; color:var(--text-muted); padding:30px;">Загрузка данных инструментов MOEX...</td></tr>';
+        nwBody.innerHTML = '<tr><td colspan="12" style="text-align:center; color:var(--text-muted); padding:30px;">Загрузка данных инструментов MOEX...</td></tr>';
         return;
       }
 
@@ -2080,6 +2082,9 @@ export function renderDashboardHtml(): string {
         const tfData = item.tf ? item.tf[nwActiveTf] : null;
         const nw = tfData && tfData.nw ? tfData.nw : null;
         const rsiVal = tfData && typeof tfData.rsi === 'number' ? tfData.rsi : null;
+        const kVal = tfData && typeof tfData.k === 'number' ? tfData.k : null;
+        const dVal = tfData && typeof tfData.d === 'number' ? tfData.d : null;
+        const cciVal = tfData && typeof tfData.cci === 'number' ? tfData.cci : null;
         const price = item.price;
 
         let confluenceSignal = 'NEUTRAL';
@@ -2101,7 +2106,7 @@ export function renderDashboardHtml(): string {
           }
         }
 
-        return { item, nw, rsiVal, confluenceSignal, positionText };
+        return { item, nw, rsiVal, kVal, dVal, cciVal, confluenceSignal, positionText };
       });
 
       const totalConfluence = strongBuyCount + strongSellCount;
@@ -2127,16 +2132,29 @@ export function renderDashboardHtml(): string {
       });
 
       if (filtered.length === 0) {
-        nwBody.innerHTML = '<tr><td colspan="10" style="text-align:center; color:var(--text-muted); padding:20px;">Нет акций по выбранным условиям фильтра</td></tr>';
+        nwBody.innerHTML = '<tr><td colspan="12" style="text-align:center; color:var(--text-muted); padding:20px;">Нет акций по выбранным условиям фильтра</td></tr>';
         return;
       }
 
-      nwBody.innerHTML = filtered.slice(0, 100).map(({ item, nw, rsiVal, confluenceSignal, positionText }) => {
+      nwBody.innerHTML = filtered.slice(0, 100).map(({ item, nw, rsiVal, kVal, dVal, cciVal, confluenceSignal, positionText }) => {
         let signalBadge = '<span class="badge-pill badge-neutral">NEUTRAL</span>';
         if (confluenceSignal === 'STRONG BUY') {
           signalBadge = '<span class="badge-pill badge-buy">🚀 STRONG BUY</span>';
         } else if (confluenceSignal === 'STRONG SELL') {
           signalBadge = '<span class="badge-pill badge-sell">⚠️ STRONG SELL</span>';
+        }
+
+        let stochText = '<span style="color:var(--text-muted)">—</span>';
+        if (kVal !== null && dVal !== null) {
+          const kColor = kVal < 20 ? 'var(--green)' : kVal > 80 ? 'var(--red)' : '#fff';
+          stochText = \`<span style="color:\${kColor}; font-weight:600;">\${kVal.toFixed(0)}</span> <span style="color:var(--text-muted); font-size:11px;">/ \${dVal.toFixed(0)}</span>\`;
+        }
+
+        let cciText = '<span style="color:var(--text-muted)">—</span>';
+        if (cciVal !== null) {
+          const cciColor = cciVal < -100 ? 'var(--green)' : cciVal > 100 ? 'var(--red)' : '#fff';
+          const sign = cciVal > 0 ? '+' : '';
+          cciText = \`<span style="color:\${cciColor}; font-weight:600;">\${sign}\${cciVal.toFixed(1)}</span>\`;
         }
 
         return \`
@@ -2149,6 +2167,8 @@ export function renderDashboardHtml(): string {
             <td style="color:#e57373;">\${nw ? nw.upper.toFixed(2) : '—'}</td>
             <td>\${positionText}</td>
             <td style="font-weight:600;">\${rsiVal !== null ? rsiVal.toFixed(1) : '—'}</td>
+            <td>\${stochText}</td>
+            <td>\${cciText}</td>
             <td>\${signalBadge}</td>
             <td>
               <a href="https://www.tbank.ru/terminal/" target="_blank" class="btn btn-sm" style="padding:2px 6px;">График ↗</a>
