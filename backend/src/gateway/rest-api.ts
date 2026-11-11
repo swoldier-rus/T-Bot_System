@@ -122,11 +122,17 @@ export function createRestApp(
   // Web Dashboard Pages
   app.get('/', (_req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.send(renderDashboardHtml());
   });
 
   app.get('/logs', (_req: Request, res: Response) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.send(renderDashboardHtml());
   });
 

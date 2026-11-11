@@ -573,13 +573,14 @@ export class StreamManager {
       console.info(`⚡ Restored ${cachedCount} candles from local disk cache! Instant warmup active.`);
     }
 
+    const effectiveDefaults = this.databaseService.getEffectiveDefaultTickers(env.DEFAULT_TICKERS);
     const priorityTickers = Array.from(
       new Set([
-        ...env.DEFAULT_TICKERS,
+        ...effectiveDefaults,
         ...MOEX_TOP_SHARES.slice(0, 10).map((s) => s.ticker),
       ])
     );
-    console.info(`⏳ Warming up historical candles for ${priorityTickers.length} top priority blue chips...`);
+    console.info(`⏳ Warming up historical candles (gap stitching) for ${priorityTickers.length} active priority shares...`);
 
     const priorityQueue = [...priorityTickers];
     let priorityWarmed = 0;
@@ -587,7 +588,7 @@ export class StreamManager {
       while (priorityQueue.length > 0) {
         const ticker = priorityQueue.shift();
         if (ticker) {
-          const ok = await this.fetchCandlesForTicker(ticker, true);
+          const ok = await this.fetchCandlesForTicker(ticker, false);
           if (ok) priorityWarmed++;
           await new Promise((r) => setTimeout(r, 100));
         }
@@ -604,122 +605,184 @@ export class StreamManager {
     await this.saveCandlesCache();
   }
 
+  /**
+   * Computes the optimal 'from' date for fetching candles with Gap Stitching.
+   * If local cache has sufficient history and is up to date, returns null (skip request).
+   * If local cache has history but is behind, returns (lastCachedTime - intervalMs) to fetch only the missing delta.
+   * If cache has insufficient bars, returns the full lookback window.
+   */
+  private getOptimalFromDate(
+    ticker: string,
+    tf: string,
+    intervalMs: number,
+    minCount: number,
+    defaultLookbackMs: number,
+    forceFresh: boolean
+  ): Date | null {
+    if (forceFresh) {
+      return new Date(Date.now() - defaultLookbackMs);
+    }
+
+    const candles = this.sharedState.getCandles(ticker, tf);
+    if (candles.length >= minCount) {
+      const lastTime = candles[candles.length - 1].time;
+      const now = Date.now();
+      // If the latest cached bar is within one bar duration, it's already fresh!
+      if (now - lastTime < intervalMs) {
+        return null;
+      }
+      // Gap stitching: request from (lastCachedTime - intervalMs) to overlap by 1 bar and stitch missing delta
+      return new Date(lastTime - intervalMs);
+    }
+
+    // Insufficient history in cache: request full required lookback (e.g. 500 bars for 5m)
+    return new Date(Date.now() - defaultLookbackMs);
+  }
+
   private async fetchCandlesForTicker(ticker: string, forceFresh = false): Promise<boolean> {
     if (!this.api) return false;
     const inst = this.sharedState.getInstrument(ticker);
     if (!inst) return false;
 
-    // Skip remote fetch if already loaded from local cache and fresh with sufficient history
-    if (!forceFresh) {
-      const c5 = this.sharedState.getCandles(ticker, '5m');
-      const c1d = this.sharedState.getCandles(ticker, '1d');
-      if (c5.length >= 250 && c1d.length >= 15) {
-        const last5m = c5[c5.length - 1];
-        const last1d = c1d[c1d.length - 1];
-        const todayDateStr = new Date().toISOString().slice(0, 10);
-        const isToday1d = last1d && new Date(last1d.time).toISOString().slice(0, 10) === todayDateStr;
-        const isRecent5m = last5m && (Date.now() - last5m.time < 30 * 60 * 1000);
+    const now = new Date();
+    // 5m: 500 bars (~6 trading days on MOEX)
+    const from5m = this.getOptimalFromDate(ticker, '5m', 5 * 60 * 1000, 300, 6 * 24 * 60 * 60 * 1000, forceFresh);
+    // 15m: 300 bars (~15 trading days)
+    const from15m = this.getOptimalFromDate(ticker, '15m', 15 * 60 * 1000, 200, 15 * 24 * 60 * 60 * 1000, forceFresh);
+    // 1h: 200 bars (~40 days)
+    const from1h = this.getOptimalFromDate(ticker, '1h', 60 * 60 * 1000, 150, 40 * 24 * 60 * 60 * 1000, forceFresh);
+    // 4h: 100 bars (~90 days)
+    const from4h = this.getOptimalFromDate(ticker, '4h', 4 * 60 * 60 * 1000, 80, 90 * 24 * 60 * 60 * 1000, forceFresh);
+    // 1d: 50 bars (~365 days)
+    const from1d = this.getOptimalFromDate(ticker, '1d', 24 * 60 * 60 * 1000, 30, 365 * 24 * 60 * 60 * 1000, forceFresh);
 
-        if (isToday1d && isRecent5m) {
-          return true;
-        }
-      }
+    // If all timeframes are already fresh in cache, no API requests needed!
+    if (!from5m && !from15m && !from1h && !from4h && !from1d) {
+      return true;
     }
 
-    const now = new Date();
-    const from5m = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
-    const from15m = new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000);
-    const from1h = new Date(now.getTime() - 40 * 24 * 60 * 60 * 1000);
-    const from4h = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-    const from1d = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+    const mapCandle = (c: any, tf: string): Candle => ({
+      figi: inst.figi,
+      ticker: inst.ticker,
+      timeframe: tf as any,
+      time: c.time ? new Date(c.time).getTime() : Date.now(),
+      open: Helpers.toNumber(c.open) || 0,
+      high: Helpers.toNumber(c.high) || 0,
+      low: Helpers.toNumber(c.low) || 0,
+      close: Helpers.toNumber(c.close) || 0,
+      volume: c.volume || 0,
+      isComplete: c.isComplete ?? true,
+    });
 
     try {
-      const [c5m, c15m, c1h, c4h, c1d] = await Promise.all([
-        this.api.marketdata.getCandles({
-          instrumentId: inst.figi,
-          from: from5m,
-          to: now,
-          interval: CandleInterval.CANDLE_INTERVAL_5_MIN,
-        }),
-        this.api.marketdata.getCandles({
-          instrumentId: inst.figi,
-          from: from15m,
-          to: now,
-          interval: CandleInterval.CANDLE_INTERVAL_15_MIN,
-        }),
-        this.api.marketdata.getCandles({
-          instrumentId: inst.figi,
-          from: from1h,
-          to: now,
-          interval: CandleInterval.CANDLE_INTERVAL_HOUR,
-        }),
-        this.api.marketdata.getCandles({
-          instrumentId: inst.figi,
-          from: from4h,
-          to: now,
-          interval: CandleInterval.CANDLE_INTERVAL_4_HOUR,
-        }),
-        this.api.marketdata.getCandles({
-          instrumentId: inst.figi,
-          from: from1d,
-          to: now,
-          interval: CandleInterval.CANDLE_INTERVAL_DAY,
-        }),
-      ]);
+      const requests: Promise<void>[] = [];
 
-      const mapCandle = (c: any, tf: string): Candle => ({
-        figi: inst.figi,
-        ticker: inst.ticker,
-        timeframe: tf as any,
-        time: c.time ? new Date(c.time).getTime() : Date.now(),
-        open: Helpers.toNumber(c.open) || 0,
-        high: Helpers.toNumber(c.high) || 0,
-        low: Helpers.toNumber(c.low) || 0,
-        close: Helpers.toNumber(c.close) || 0,
-        volume: c.volume || 0,
-        isComplete: c.isComplete ?? true,
-      });
-
-      if (c5m.candles && c5m.candles.length > 0) {
-        this.sharedState.setCandles(
-          inst.ticker,
-          '5m',
-          c5m.candles.map((c) => mapCandle(c, '5m'))
+      if (from5m) {
+        requests.push(
+          this.api.marketdata
+            .getCandles({
+              instrumentId: inst.figi,
+              from: from5m,
+              to: now,
+              interval: CandleInterval.CANDLE_INTERVAL_5_MIN,
+            })
+            .then((resp) => {
+              if (resp.candles && resp.candles.length > 0) {
+                this.sharedState.setCandles(
+                  inst.ticker,
+                  '5m',
+                  resp.candles.map((c) => mapCandle(c, '5m'))
+                );
+              }
+            })
         );
       }
 
-      if (c15m.candles && c15m.candles.length > 0) {
-        this.sharedState.setCandles(
-          inst.ticker,
-          '15m',
-          c15m.candles.map((c) => mapCandle(c, '15m'))
+      if (from15m) {
+        requests.push(
+          this.api.marketdata
+            .getCandles({
+              instrumentId: inst.figi,
+              from: from15m,
+              to: now,
+              interval: CandleInterval.CANDLE_INTERVAL_15_MIN,
+            })
+            .then((resp) => {
+              if (resp.candles && resp.candles.length > 0) {
+                this.sharedState.setCandles(
+                  inst.ticker,
+                  '15m',
+                  resp.candles.map((c) => mapCandle(c, '15m'))
+                );
+              }
+            })
         );
       }
 
-      if (c1h.candles && c1h.candles.length > 0) {
-        this.sharedState.setCandles(
-          inst.ticker,
-          '1h',
-          c1h.candles.map((c) => mapCandle(c, '1h'))
+      if (from1h) {
+        requests.push(
+          this.api.marketdata
+            .getCandles({
+              instrumentId: inst.figi,
+              from: from1h,
+              to: now,
+              interval: CandleInterval.CANDLE_INTERVAL_HOUR,
+            })
+            .then((resp) => {
+              if (resp.candles && resp.candles.length > 0) {
+                this.sharedState.setCandles(
+                  inst.ticker,
+                  '1h',
+                  resp.candles.map((c) => mapCandle(c, '1h'))
+                );
+              }
+            })
         );
       }
 
-      if (c4h.candles && c4h.candles.length > 0) {
-        this.sharedState.setCandles(
-          inst.ticker,
-          '4h',
-          c4h.candles.map((c) => mapCandle(c, '4h'))
+      if (from4h) {
+        requests.push(
+          this.api.marketdata
+            .getCandles({
+              instrumentId: inst.figi,
+              from: from4h,
+              to: now,
+              interval: CandleInterval.CANDLE_INTERVAL_4_HOUR,
+            })
+            .then((resp) => {
+              if (resp.candles && resp.candles.length > 0) {
+                this.sharedState.setCandles(
+                  inst.ticker,
+                  '4h',
+                  resp.candles.map((c) => mapCandle(c, '4h'))
+                );
+              }
+            })
         );
       }
 
-      if (c1d.candles && c1d.candles.length > 0) {
-        this.sharedState.setCandles(
-          inst.ticker,
-          '1d',
-          c1d.candles.map((c) => mapCandle(c, '1d'))
+      if (from1d) {
+        requests.push(
+          this.api.marketdata
+            .getCandles({
+              instrumentId: inst.figi,
+              from: from1d,
+              to: now,
+              interval: CandleInterval.CANDLE_INTERVAL_DAY,
+            })
+            .then((resp) => {
+              if (resp.candles && resp.candles.length > 0) {
+                this.sharedState.setCandles(
+                  inst.ticker,
+                  '1d',
+                  resp.candles.map((c) => mapCandle(c, '1d'))
+                );
+              }
+            })
         );
       }
 
+      await Promise.all(requests);
       return true;
     } catch (err: any) {
       const msg = err.message || String(err);
