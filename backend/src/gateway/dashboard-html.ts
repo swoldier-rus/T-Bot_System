@@ -708,6 +708,82 @@ export function renderDashboardHtml(): string {
     @media (max-width: 600px) {
       .form-row { grid-template-columns: 1fr; }
     }
+
+    /* Accordion (Гармошка) for Indicator & Scanner Settings */
+    .accordion-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .accordion-item {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    .accordion-item[open] {
+      background: rgba(255, 255, 255, 0.035);
+      border-color: rgba(41, 98, 255, 0.35);
+    }
+    .accordion-header {
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      list-style: none;
+      user-select: none;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .accordion-header::-webkit-details-marker {
+      display: none;
+    }
+    .accordion-header:hover {
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+    }
+    .accordion-item[open] .accordion-header {
+      color: #fff;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .accordion-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .acc-icon {
+      font-size: 13px;
+    }
+    .accordion-badge {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+    .accordion-item[open] .accordion-badge {
+      background: rgba(41, 98, 255, 0.15);
+      color: #82b1ff;
+    }
+    .accordion-chevron {
+      font-size: 10px;
+      color: var(--text-muted);
+      transition: transform 0.2s ease;
+    }
+    .accordion-item[open] .accordion-chevron {
+      transform: rotate(180deg);
+      color: var(--accent);
+    }
+    .accordion-body {
+      padding: 12px 14px 4px 14px;
+      animation: fadeIn 0.15s ease-out;
+    }
   </style>
 </head>
 <body>
@@ -1230,64 +1306,213 @@ export function renderDashboardHtml(): string {
         <!-- Column 2: Indicator Parameters & Gateway Info -->
         <div style="display:flex; flex-direction:column; gap:16px;">
           <div class="card">
-            <div class="card-title" style="margin-bottom:12px;">Параметры индикаторов и порогов скринера</div>
+            <div class="card-title" style="margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+              <span>Параметры индикаторов и сканеров</span>
+              <div style="display:flex; gap:6px;">
+                <button type="button" class="btn btn-sm" onclick="expandAllAccordion()" title="Развернуть все секции">Развернуть все</button>
+                <button type="button" class="btn btn-sm" onclick="collapseAllAccordion()" title="Свернуть все секции">Свернуть все</button>
+              </div>
+            </div>
+
             <form id="form-indicators" onsubmit="saveIndicatorParams(event)">
-              <div class="form-row">
-                <div class="form-group">
-                  <label>RSI Период</label>
-                  <input type="number" id="cfg-rsi-period" class="form-input" min="2" max="50" value="14">
-                </div>
-                <div class="form-group">
-                  <label>RVol Период (Дней)</label>
-                  <input type="number" id="cfg-rvol-days" class="form-input" min="2" max="30" value="10">
-                </div>
+              <div class="accordion-group">
+                <!-- 1. RSI -->
+                <details class="accordion-item" open>
+                  <summary class="accordion-header">
+                    <div class="accordion-title">
+                      <span class="acc-icon">📊</span>
+                      <span>RSI (Relative Strength Index)</span>
+                      <span class="accordion-badge" id="acc-badge-rsi">14 [30/70]</span>
+                    </div>
+                    <span class="accordion-chevron">▼</span>
+                  </summary>
+                  <div class="accordion-body">
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>RSI Период</label>
+                        <input type="number" id="cfg-rsi-period" class="form-input" min="2" max="50" value="14">
+                      </div>
+                      <div class="form-group">
+                        <label>Зона перепроданности (BUY)</label>
+                        <input type="number" id="cfg-rsi-oversold" class="form-input" min="10" max="45" value="30">
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>Зона перекупленности (SELL)</label>
+                        <input type="number" id="cfg-rsi-overbought" class="form-input" min="55" max="90" value="70">
+                      </div>
+                    </div>
+                  </div>
+                </details>
+
+                <!-- 2. Stochastic -->
+                <details class="accordion-item" open>
+                  <summary class="accordion-header">
+                    <div class="accordion-title">
+                      <span class="acc-icon">⚡</span>
+                      <span>Stochastic Oscillator</span>
+                      <span class="accordion-badge" id="acc-badge-stoch">14, 3, 3 [20/80]</span>
+                    </div>
+                    <span class="accordion-chevron">▼</span>
+                  </summary>
+                  <div class="accordion-body">
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>Stoch %K Период</label>
+                        <input type="number" id="cfg-stoch-k" class="form-input" min="2" max="50" value="14">
+                      </div>
+                      <div class="form-group">
+                        <label>Stoch %D / Signal</label>
+                        <input type="number" id="cfg-stoch-d" class="form-input" min="1" max="10" value="3">
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>Stoch %K Smooth</label>
+                        <input type="number" id="cfg-stoch-smooth" class="form-input" min="1" max="10" value="3">
+                      </div>
+                      <div class="form-group">
+                        <label>Зона перепроданности (BUY)</label>
+                        <input type="number" id="cfg-stoch-oversold" class="form-input" min="5" max="40" value="20">
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>Зона перекупленности (SELL)</label>
+                        <input type="number" id="cfg-stoch-overbought" class="form-input" min="60" max="95" value="80">
+                      </div>
+                    </div>
+                  </div>
+                </details>
+
+                <!-- 3. Nadaraya-Watson -->
+                <details class="accordion-item">
+                  <summary class="accordion-header">
+                    <div class="accordion-title">
+                      <span class="acc-icon">🌊</span>
+                      <span>Nadaraya-Watson Envelope (LuxAlgo)</span>
+                      <span class="accordion-badge" id="acc-badge-nw">h=8.0, mult=3.0</span>
+                    </div>
+                    <span class="accordion-chevron">▼</span>
+                  </summary>
+                  <div class="accordion-body">
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>NW Bandwidth (h)</label>
+                        <input type="number" id="cfg-nw-bw" class="form-input" min="1" max="50" step="0.5" value="8">
+                      </div>
+                      <div class="form-group">
+                        <label>NW Multiplier (mult)</label>
+                        <input type="number" id="cfg-nw-mult" class="form-input" min="0.5" max="10" step="0.5" value="3">
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>Режим LuxAlgo (500 баров сглаживания)</label>
+                        <label class="toggle-switch" style="margin-top:4px;">
+                          <input type="checkbox" id="cfg-nw-repaint" checked>
+                          <span class="toggle-slider"></span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </details>
+
+                <!-- 4. CCI -->
+                <details class="accordion-item">
+                  <summary class="accordion-header">
+                    <div class="accordion-title">
+                      <span class="acc-icon">🧭</span>
+                      <span>CCI (Commodity Channel Index)</span>
+                      <span class="accordion-badge" id="acc-badge-cci">20 [-100/+100]</span>
+                    </div>
+                    <span class="accordion-chevron">▼</span>
+                  </summary>
+                  <div class="accordion-body">
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>CCI Период</label>
+                        <input type="number" id="cfg-cci-period" class="form-input" min="2" max="100" value="20">
+                      </div>
+                      <div class="form-group">
+                        <label>Нижняя граница (BUY)</label>
+                        <input type="number" id="cfg-cci-oversold" class="form-input" min="-300" max="-50" value="-100">
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>Верхняя граница (SELL)</label>
+                        <input type="number" id="cfg-cci-overbought" class="form-input" min="50" max="300" value="100">
+                      </div>
+                    </div>
+                  </div>
+                </details>
+
+                <!-- 5. RVol -->
+                <details class="accordion-item">
+                  <summary class="accordion-header">
+                    <div class="accordion-title">
+                      <span class="acc-icon">📦</span>
+                      <span>RVol (Относительный объем)</span>
+                      <span class="accordion-badge" id="acc-badge-rvol">10 дней [x2.0]</span>
+                    </div>
+                    <span class="accordion-chevron">▼</span>
+                  </summary>
+                  <div class="accordion-body">
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>RVol Базовый период (Дней)</label>
+                        <input type="number" id="cfg-rvol-days" class="form-input" min="2" max="30" value="10">
+                      </div>
+                      <div class="form-group">
+                        <label>Порог аномального всплеска (x)</label>
+                        <input type="number" id="cfg-rvol-threshold" class="form-input" min="1.1" max="10" step="0.1" value="2.0">
+                      </div>
+                    </div>
+                  </div>
+                </details>
+
+                <!-- 6. Scanners & Detectors Group -->
+                <details class="accordion-item" open>
+                  <summary class="accordion-header" style="border-left: 3px solid var(--accent);">
+                    <div class="accordion-title">
+                      <span class="acc-icon">🎯</span>
+                      <span style="color:#fff; font-weight:700;">Сканеры & Детекторы микроструктуры</span>
+                      <span class="accordion-badge" style="background:rgba(41,98,255,0.2); color:#82b1ff;">Детекторы L2</span>
+                    </div>
+                    <span class="accordion-chevron">▼</span>
+                  </summary>
+                  <div class="accordion-body">
+                    <div style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">
+                      Параметры детекции скрытой ликвидности (айсбергов), алгоритмических роботов и спуфинга в реальном времени.
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>Айсберги: Мин. множитель (x)</label>
+                        <input type="number" id="cfg-iceberg-ratio" class="form-input" min="1.2" max="20" step="0.1" value="2.5">
+                      </div>
+                      <div class="form-group">
+                        <label>Айсберги: Мин. трейдов на уровне</label>
+                        <input type="number" id="cfg-iceberg-min-trades" class="form-input" min="1" max="30" value="3">
+                      </div>
+                    </div>
+                    <div class="form-row">
+                      <div class="form-group">
+                        <label>Роботы: Мин. частота (тр/с)</label>
+                        <input type="number" id="cfg-robot-freq" class="form-input" min="1" max="100" value="5">
+                      </div>
+                      <div class="form-group">
+                        <label>Роботы: Размер пакета сделок</label>
+                        <input type="number" id="cfg-robot-burst" class="form-input" min="3" max="100" value="10">
+                      </div>
+                    </div>
+                  </div>
+                </details>
               </div>
 
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Stoch %K</label>
-                  <input type="number" id="cfg-stoch-k" class="form-input" min="2" max="50" value="14">
-                </div>
-                <div class="form-group">
-                  <label>Stoch %D / Smooth</label>
-                  <input type="number" id="cfg-stoch-d" class="form-input" min="1" max="10" value="3">
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label>NW Bandwidth (h)</label>
-                  <input type="number" id="cfg-nw-bw" class="form-input" min="1" max="50" step="0.5" value="8">
-                </div>
-                <div class="form-group">
-                  <label>NW Multiplier</label>
-                  <input type="number" id="cfg-nw-mult" class="form-input" min="0.5" max="10" step="0.5" value="3">
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Режим LuxAlgo (500 баров)</label>
-                  <label class="toggle-switch" style="margin-top:4px;">
-                    <input type="checkbox" id="cfg-nw-repaint" checked>
-                    <span class="toggle-slider"></span>
-                  </label>
-                </div>
-                <div class="form-group">
-                  <label>Айсберги: Мин. множитель</label>
-                  <input type="number" id="cfg-iceberg-ratio" class="form-input" min="1.5" max="20" step="0.5" value="2.5">
-                </div>
-              </div>
-
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Роботы: Мин. частота (тр/с)</label>
-                  <input type="number" id="cfg-robot-freq" class="form-input" min="2" max="50" value="5">
-                </div>
-              </div>
-
-              <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:8px;">
-                💾 Применить параметры индикаторов
+              <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; margin-top:14px; padding:9px 16px;">
+                💾 Применить параметры индикаторов и сканеров
               </button>
               <div id="settings-indicators-result" style="margin-top:8px; font-size:11px;"></div>
             </form>
@@ -2624,12 +2849,33 @@ export function renderDashboardHtml(): string {
           if (indCfg && indCfg.params) {
             const p = indCfg.params;
             if (p.rsiPeriod) document.getElementById('cfg-rsi-period').value = p.rsiPeriod;
-            if (p.rvolDays) document.getElementById('cfg-rvol-days').value = p.rvolDays;
+            if (p.rsiOversold) document.getElementById('cfg-rsi-oversold').value = p.rsiOversold;
+            if (p.rsiOverbought) document.getElementById('cfg-rsi-overbought').value = p.rsiOverbought;
+
             if (p.stochK) document.getElementById('cfg-stoch-k').value = p.stochK;
             if (p.stochD) document.getElementById('cfg-stoch-d').value = p.stochD;
+            if (p.stochSmooth) document.getElementById('cfg-stoch-smooth').value = p.stochSmooth;
+            if (p.stochOversold) document.getElementById('cfg-stoch-oversold').value = p.stochOversold;
+            if (p.stochOverbought) document.getElementById('cfg-stoch-overbought').value = p.stochOverbought;
+
             if (p.nwBandwidth) document.getElementById('cfg-nw-bw').value = p.nwBandwidth;
             if (p.nwMult) document.getElementById('cfg-nw-mult').value = p.nwMult;
             if (typeof p.nwRepaint === 'boolean') document.getElementById('cfg-nw-repaint').checked = p.nwRepaint;
+
+            if (p.cciPeriod) document.getElementById('cfg-cci-period').value = p.cciPeriod;
+            if (p.cciOversold) document.getElementById('cfg-cci-oversold').value = p.cciOversold;
+            if (p.cciOverbought) document.getElementById('cfg-cci-overbought').value = p.cciOverbought;
+
+            if (p.rvolDays) document.getElementById('cfg-rvol-days').value = p.rvolDays;
+            if (p.rvolThreshold) document.getElementById('cfg-rvol-threshold').value = p.rvolThreshold;
+
+            if (p.icebergRatio) document.getElementById('cfg-iceberg-ratio').value = p.icebergRatio;
+            if (p.icebergMinTrades) document.getElementById('cfg-iceberg-min-trades').value = p.icebergMinTrades;
+
+            if (p.robotFreq) document.getElementById('cfg-robot-freq').value = p.robotFreq;
+            if (p.robotBurst) document.getElementById('cfg-robot-burst').value = p.robotBurst;
+
+            updateAccordionBadges();
           }
         }
 
@@ -2696,19 +2942,83 @@ export function renderDashboardHtml(): string {
     document.getElementById('btn-tg-test').addEventListener('click', () => sendTelegramTest('settings-tg-result'));
     document.getElementById('btn-tg-quick-test').addEventListener('click', () => sendTelegramTest('mon-tg-result'));
 
+    function expandAllAccordion() {
+      document.querySelectorAll('#form-indicators .accordion-item').forEach(el => el.open = true);
+    }
+
+    function collapseAllAccordion() {
+      document.querySelectorAll('#form-indicators .accordion-item').forEach(el => el.open = false);
+    }
+
+    function updateAccordionBadges() {
+      const rsiP = document.getElementById('cfg-rsi-period')?.value || 14;
+      const rsiOs = document.getElementById('cfg-rsi-oversold')?.value || 30;
+      const rsiOb = document.getElementById('cfg-rsi-overbought')?.value || 70;
+      const bRsi = document.getElementById('acc-badge-rsi');
+      if (bRsi) bRsi.textContent = \`\${rsiP} [\${rsiOs}/\${rsiOb}]\`;
+
+      const stK = document.getElementById('cfg-stoch-k')?.value || 14;
+      const stD = document.getElementById('cfg-stoch-d')?.value || 3;
+      const stSm = document.getElementById('cfg-stoch-smooth')?.value || 3;
+      const stOs = document.getElementById('cfg-stoch-oversold')?.value || 20;
+      const stOb = document.getElementById('cfg-stoch-overbought')?.value || 80;
+      const bStoch = document.getElementById('acc-badge-stoch');
+      if (bStoch) bStoch.textContent = \`\${stK}, \${stD}, \${stSm} [\${stOs}/\${stOb}]\`;
+
+      const nwBw = document.getElementById('cfg-nw-bw')?.value || 8;
+      const nwMult = document.getElementById('cfg-nw-mult')?.value || 3;
+      const bNw = document.getElementById('acc-badge-nw');
+      if (bNw) bNw.textContent = \`h=\${nwBw}, mult=\${nwMult}\`;
+
+      const cciP = document.getElementById('cfg-cci-period')?.value || 20;
+      const cciOs = document.getElementById('cfg-cci-oversold')?.value || -100;
+      const cciOb = document.getElementById('cfg-cci-overbought')?.value || 100;
+      const bCci = document.getElementById('acc-badge-cci');
+      if (bCci) bCci.textContent = \`\${cciP} [\${cciOs}/+\${cciOb}]\`;
+
+      const rvD = document.getElementById('cfg-rvol-days')?.value || 10;
+      const rvTh = document.getElementById('cfg-rvol-threshold')?.value || 2.0;
+      const bRv = document.getElementById('acc-badge-rvol');
+      if (bRv) bRv.textContent = \`\${rvD} дн. [x\${rvTh}]\`;
+    }
+
+    // Bind real-time input change listeners for dynamic badge feedback
+    document.querySelectorAll('#form-indicators input').forEach(input => {
+      input.addEventListener('input', updateAccordionBadges);
+    });
+
     async function saveIndicatorParams(event) {
       if (event) event.preventDefault();
       const resDiv = document.getElementById('settings-indicators-result');
       resDiv.innerHTML = '<span style="color:var(--orange)">Обновление параметров...</span>';
 
       const params = {
-        rsiPeriod: parseInt(document.getElementById('cfg-rsi-period').value, 10) || 14,
-        rvolDays: parseInt(document.getElementById('cfg-rvol-days').value, 10) || 10,
-        stochK: parseInt(document.getElementById('cfg-stoch-k').value, 10) || 14,
-        stochD: parseInt(document.getElementById('cfg-stoch-d').value, 10) || 3,
-        nwBandwidth: parseFloat(document.getElementById('cfg-nw-bw').value) || 8.0,
-        nwMult: parseFloat(document.getElementById('cfg-nw-mult').value) || 3.0,
+        rsiPeriod: parseInt(document.getElementById('cfg-rsi-period')?.value, 10) || 14,
+        rsiOversold: parseInt(document.getElementById('cfg-rsi-oversold')?.value, 10) || 30,
+        rsiOverbought: parseInt(document.getElementById('cfg-rsi-overbought')?.value, 10) || 70,
+
+        stochK: parseInt(document.getElementById('cfg-stoch-k')?.value, 10) || 14,
+        stochD: parseInt(document.getElementById('cfg-stoch-d')?.value, 10) || 3,
+        stochSmooth: parseInt(document.getElementById('cfg-stoch-smooth')?.value, 10) || 3,
+        stochOversold: parseInt(document.getElementById('cfg-stoch-oversold')?.value, 10) || 20,
+        stochOverbought: parseInt(document.getElementById('cfg-stoch-overbought')?.value, 10) || 80,
+
+        nwBandwidth: parseFloat(document.getElementById('cfg-nw-bw')?.value) || 8.0,
+        nwMult: parseFloat(document.getElementById('cfg-nw-mult')?.value) || 3.0,
         nwRepaint: document.getElementById('cfg-nw-repaint') ? document.getElementById('cfg-nw-repaint').checked : true,
+
+        cciPeriod: parseInt(document.getElementById('cfg-cci-period')?.value, 10) || 20,
+        cciOversold: parseInt(document.getElementById('cfg-cci-oversold')?.value, 10) || -100,
+        cciOverbought: parseInt(document.getElementById('cfg-cci-overbought')?.value, 10) || 100,
+
+        rvolDays: parseInt(document.getElementById('cfg-rvol-days')?.value, 10) || 10,
+        rvolThreshold: parseFloat(document.getElementById('cfg-rvol-threshold')?.value) || 2.0,
+
+        icebergRatio: parseFloat(document.getElementById('cfg-iceberg-ratio')?.value) || 2.5,
+        icebergMinTrades: parseInt(document.getElementById('cfg-iceberg-min-trades')?.value, 10) || 3,
+
+        robotFreq: parseInt(document.getElementById('cfg-robot-freq')?.value, 10) || 5,
+        robotBurst: parseInt(document.getElementById('cfg-robot-burst')?.value, 10) || 10,
       };
 
       try {
@@ -2719,7 +3029,8 @@ export function renderDashboardHtml(): string {
         });
         const res = await resp.json();
         if (res.status === 'ok') {
-          resDiv.innerHTML = '<span style="color:var(--green)">✅ Параметры применены ко всем 273 акциям!</span>';
+          resDiv.innerHTML = '<span style="color:var(--green)">✅ Параметры индикаторов и сканеров сохранены!</span>';
+          updateAccordionBadges();
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ action: 'SET_INDICATOR_PARAMS', params }));
           }

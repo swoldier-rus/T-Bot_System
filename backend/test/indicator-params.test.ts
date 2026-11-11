@@ -93,4 +93,54 @@ describe('SharedState Dynamic Indicator Parameters', () => {
     expect(k5).not.toBeNull();
     expect(k5).not.toEqual(k14);
   });
+
+  it('updates and retains all accordion indicator parameters and scanner thresholds', () => {
+    const state = new SharedState();
+    const customParams = {
+      rsiPeriod: 21,
+      rsiOversold: 25,
+      rsiOverbought: 75,
+      stochK: 21,
+      stochSmooth: 5,
+      stochD: 5,
+      stochOversold: 15,
+      stochOverbought: 85,
+      nwBandwidth: 10.5,
+      nwMult: 3.5,
+      nwRepaint: false,
+      cciPeriod: 30,
+      cciOversold: -120,
+      cciOverbought: 120,
+      rvolDays: 14,
+      rvolThreshold: 2.5,
+      icebergRatio: 3.0,
+      icebergMinTrades: 5,
+      robotFreq: 8,
+      robotBurst: 15,
+    };
+
+    state.updateDefaultParams(customParams);
+    const active = state.getDefaultParams();
+
+    expect(active.rsiPeriod).toBe(21);
+    expect(active.rsiOversold).toBe(25);
+    expect(active.rsiOverbought).toBe(75);
+    expect(active.stochK).toBe(21);
+    expect(active.stochSmooth).toBe(5);
+    expect(active.stochD).toBe(5);
+    expect(active.stochOversold).toBe(15);
+    expect(active.stochOverbought).toBe(85);
+    expect(active.nwBandwidth).toBe(10.5);
+    expect(active.nwMult).toBe(3.5);
+    expect(active.nwRepaint).toBe(false);
+    expect(active.cciPeriod).toBe(30);
+    expect(active.cciOversold).toBe(-120);
+    expect(active.cciOverbought).toBe(120);
+    expect(active.rvolDays).toBe(14);
+    expect(active.rvolThreshold).toBe(2.5);
+    expect(active.icebergRatio).toBe(3.0);
+    expect(active.icebergMinTrades).toBe(5);
+    expect(active.robotFreq).toBe(8);
+    expect(active.robotBurst).toBe(15);
+  });
 });

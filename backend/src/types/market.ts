@@ -91,24 +91,46 @@ export interface StockItem {
 
 export interface IndicatorParams {
   rsiPeriod: number;
+  rsiOversold?: number;
+  rsiOverbought?: number;
   stochK: number;
   stochSmooth: number;
   stochD: number;
+  stochOversold?: number;
+  stochOverbought?: number;
   rvolDays: number;
+  rvolThreshold?: number;
   nwBandwidth?: number;
   nwMult?: number;
   nwRepaint?: boolean;
   cciPeriod?: number;
+  cciOversold?: number;
+  cciOverbought?: number;
+  icebergRatio?: number;
+  icebergMinTrades?: number;
+  robotFreq?: number;
+  robotBurst?: number;
 }
 
 export const DEFAULT_INDICATOR_PARAMS: IndicatorParams = {
   rsiPeriod: 14,
+  rsiOversold: 30,
+  rsiOverbought: 70,
   stochK: 14,
   stochSmooth: 3,
   stochD: 3,
+  stochOversold: 20,
+  stochOverbought: 80,
   rvolDays: 10,
+  rvolThreshold: 2.0,
   nwBandwidth: 8,
   nwMult: 3,
   nwRepaint: true,
   cciPeriod: 20,
+  cciOversold: -100,
+  cciOverbought: 100,
+  icebergRatio: 2.5,
+  icebergMinTrades: 3,
+  robotFreq: 5,
+  robotBurst: 10,
 };

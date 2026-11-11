@@ -268,14 +268,25 @@ export class GatewayWebSocketServer {
             const current = ws.indicatorParams || this.sharedState.getDefaultParams();
             const updated: IndicatorParams = {
               rsiPeriod: typeof parsed.params.rsiPeriod === 'number' ? Math.max(2, Math.min(50, parsed.params.rsiPeriod)) : current.rsiPeriod,
+              rsiOversold: typeof parsed.params.rsiOversold === 'number' ? Math.max(10, Math.min(45, parsed.params.rsiOversold)) : (current.rsiOversold ?? 30),
+              rsiOverbought: typeof parsed.params.rsiOverbought === 'number' ? Math.max(55, Math.min(90, parsed.params.rsiOverbought)) : (current.rsiOverbought ?? 70),
               stochK: typeof parsed.params.stochK === 'number' ? Math.max(2, Math.min(50, parsed.params.stochK)) : current.stochK,
               stochSmooth: typeof parsed.params.stochSmooth === 'number' ? Math.max(1, Math.min(10, parsed.params.stochSmooth)) : current.stochSmooth,
               stochD: typeof parsed.params.stochD === 'number' ? Math.max(1, Math.min(10, parsed.params.stochD)) : current.stochD,
+              stochOversold: typeof parsed.params.stochOversold === 'number' ? Math.max(5, Math.min(40, parsed.params.stochOversold)) : (current.stochOversold ?? 20),
+              stochOverbought: typeof parsed.params.stochOverbought === 'number' ? Math.max(60, Math.min(95, parsed.params.stochOverbought)) : (current.stochOverbought ?? 80),
               rvolDays: typeof parsed.params.rvolDays === 'number' ? Math.max(2, Math.min(30, parsed.params.rvolDays)) : current.rvolDays,
+              rvolThreshold: typeof parsed.params.rvolThreshold === 'number' ? Math.max(1.1, Math.min(10, parsed.params.rvolThreshold)) : (current.rvolThreshold ?? 2.0),
               nwBandwidth: typeof parsed.params.nwBandwidth === 'number' ? Math.max(1, Math.min(50, parsed.params.nwBandwidth)) : (current.nwBandwidth ?? 8),
               nwMult: typeof parsed.params.nwMult === 'number' ? Math.max(0.5, Math.min(10, parsed.params.nwMult)) : (current.nwMult ?? 3),
               nwRepaint: typeof parsed.params.nwRepaint === 'boolean' ? parsed.params.nwRepaint : (current.nwRepaint ?? true),
               cciPeriod: typeof parsed.params.cciPeriod === 'number' ? Math.max(2, Math.min(100, parsed.params.cciPeriod)) : (current.cciPeriod ?? 20),
+              cciOversold: typeof parsed.params.cciOversold === 'number' ? Math.max(-300, Math.min(-50, parsed.params.cciOversold)) : (current.cciOversold ?? -100),
+              cciOverbought: typeof parsed.params.cciOverbought === 'number' ? Math.max(50, Math.min(300, parsed.params.cciOverbought)) : (current.cciOverbought ?? 100),
+              icebergRatio: typeof parsed.params.icebergRatio === 'number' ? Math.max(1.2, Math.min(20, parsed.params.icebergRatio)) : (current.icebergRatio ?? 2.5),
+              icebergMinTrades: typeof parsed.params.icebergMinTrades === 'number' ? Math.max(1, Math.min(30, parsed.params.icebergMinTrades)) : (current.icebergMinTrades ?? 3),
+              robotFreq: typeof parsed.params.robotFreq === 'number' ? Math.max(1, Math.min(100, parsed.params.robotFreq)) : (current.robotFreq ?? 5),
+              robotBurst: typeof parsed.params.robotBurst === 'number' ? Math.max(3, Math.min(100, parsed.params.robotBurst)) : (current.robotBurst ?? 10),
             };
             ws.indicatorParams = updated;
 
