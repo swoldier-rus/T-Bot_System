@@ -27,6 +27,7 @@
         <tr
           v-for="row in rows"
           :key="row.ticker"
+          :class="rowFlashMap[row.ticker] || ''"
         >
           <!-- 1. Instrument -->
           <RowInstrument
@@ -102,6 +103,10 @@ defineProps({
   rows: {
     type: Array,
     default: () => [],
+  },
+  rowFlashMap: {
+    type: Object,
+    default: () => ({}),
   },
   sortBy: {
     type: String,

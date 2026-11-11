@@ -536,17 +536,19 @@ html, body {
 }
 
 @keyframes flashBuy {
-    0% { background-color: rgba(25, 178, 107, 0.24); }
-    100% { background-color: transparent; }
+    0% { background-color: rgba(25, 178, 107, 0.28); }
+    100% { background-color: var(--table-primary-row); }
 }
 @keyframes flashSell {
-    0% { background-color: rgba(242, 54, 69, 0.24); }
-    100% { background-color: transparent; }
+    0% { background-color: rgba(242, 54, 69, 0.28); }
+    100% { background-color: var(--table-primary-row); }
 }
-.row-flash-up {
+.row-flash-up,
+.screener-table tbody tr.row-flash-up {
     animation: flashBuy 0.7s ease-out;
 }
-.row-flash-down {
+.row-flash-down,
+.screener-table tbody tr.row-flash-down {
     animation: flashSell 0.7s ease-out;
 }
 

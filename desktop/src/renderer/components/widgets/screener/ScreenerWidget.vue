@@ -33,6 +33,7 @@
     <!-- 3. Table -->
     <ScreenerTable
       :rows="filteredAndSortedRows"
+      :row-flash-map="rowFlashMap"
       :sort-by="sortBy"
       :sort-desc="sortDesc"
       :use-c-c-i="useCCI"
@@ -98,6 +99,7 @@ const {
   searchQuery,
   sortBy,
   sortDesc,
+  rowFlashMap,
   editFavoritesMode,
   linkGroupColor,
   linkGroupTooltip,

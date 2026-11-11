@@ -1,6 +1,12 @@
 import { ref, watch } from 'vue';
-import { useScreenerState, upsertBackendStocks, updateSingleStock } from './useScreenerState';
-import { useFavorites } from './useFavorites';
+import {
+  useScreenerState,
+  upsertBackendStocks,
+  updateSingleStock,
+  queueStockUpdates,
+  queueCandleTick,
+} from './useScreenerState.js';
+import { useFavorites } from './useFavorites.js';
 
 const serverOnline = ref(true);
 const realConnected = ref(false);
@@ -131,12 +137,22 @@ export function useWebSocket() {
               if (tbTickers.length > 0) {
                 setTBankFavorites(tbTickers);
               }
-            } else if (msg.event === 'TICKER_UPDATE' || msg.event === 'CANDLE_TICK') {
+            } else if (msg.event === 'DELTA_UPDATE' || msg.event === 'TICKER_UPDATE') {
+              if (Array.isArray(msg.data)) {
+                queueStockUpdates(msg.data);
+              } else if (msg.data && msg.data.ticker) {
+                queueStockUpdates([msg.data]);
+              }
+            } else if (msg.event === 'CANDLE_TICK') {
               if (msg.data) {
-                updateSingleStock(msg.data);
+                queueCandleTick(msg.data);
               }
             } else if (msg.type === 'ticker' || msg.type === 'candle') {
-              updateSingleStock(msg);
+              if (msg.data) {
+                queueCandleTick(msg.data);
+              } else {
+                queueCandleTick(msg);
+              }
             } else if (msg.event === 'SCANNER_SIGNAL') {
               const s = msg.data;
               if (s && s.ticker) {

@@ -1126,21 +1126,21 @@ export class StreamManager {
   }
 
   private startTickerBroadcastTimer(): void {
-    // Broadcast ready screener table deltas every 2500ms to WebSocket clients (smooth 2.5s cadence)
+    // Broadcast ready screener table deltas every 1000ms to WebSocket clients (smooth 1s cadence)
     let tickCount = 0;
     this.broadcastIntervalTimer = setInterval(() => {
       tickCount++;
       const deltas = this.sharedState.getDirtyStockItems();
       if (deltas.length > 0) {
         this.eventBus.emit('market:delta_update', deltas);
-      } else if (tickCount % 24 === 0) {
+      } else if (tickCount % 60 === 0) {
         // Periodic full sync heartbeat every 60s
         const all = this.sharedState.getAllStockItems();
         if (all.length > 0) {
           this.eventBus.emit('market:ticker_update', all);
         }
       }
-    }, 2500);
+    }, 1000);
   }
 
   private getCacheFilePath(): string {

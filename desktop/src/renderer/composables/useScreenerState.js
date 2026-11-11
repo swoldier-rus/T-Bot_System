@@ -1,22 +1,22 @@
 import { ref, computed, reactive, watch } from 'vue';
-import { useFavorites } from './useFavorites';
-import { useSettings } from './useSettings';
+import { useFavorites } from './useFavorites.js';
+import { useSettings } from './useSettings.js';
 
 const initialInstruments = [
-  { ticker: 'SBER', fullName: 'Сбербанк России ПАО', color: '#19B26B', bluechip: true, price: 284.65, change: 2.18, volDiffBase: 68.4, volRubMln: 48200, rsi: 24.6, nw: 'BUY', cci: -138, stch: 14.2 },
-  { ticker: 'T', fullName: 'Т-Технологии МКПАО', color: '#FFDD2D', textDark: true, bluechip: true, price: 2942.50, change: 3.42, volDiffBase: 94.2, volRubMln: 31500, rsi: 22.1, nw: 'BUY', cci: -154, stch: 11.8 },
-  { ticker: 'LKOH', fullName: 'ЛУКОЙЛ НК ПАО', color: '#F23645', bluechip: true, price: 7148.00, change: -1.45, volDiffBase: 42.0, volRubMln: 22900, rsi: 76.4, nw: 'SELL', cci: 148, stch: 88.5 },
-  { ticker: 'GAZP', fullName: 'Газпром ПАО', color: '#336FEE', bluechip: true, price: 136.82, change: -2.14, volDiffBase: 55.8, volRubMln: 28400, rsi: 74.1, nw: 'SELL', cci: 132, stch: 84.1 },
-  { ticker: 'YDEX', fullName: 'МКАО Яндекс', color: '#F23645', bluechip: true, price: 4125.00, change: 1.95, volDiffBase: 38.5, volRubMln: 18700, rsi: 27.9, nw: 'BUY', cci: -118, stch: 18.6 },
-  { ticker: 'ROSN', fullName: 'НК Роснефть ПАО', color: '#F59E0B', textDark: true, bluechip: true, price: 518.40, change: 0.42, volDiffBase: -18.4, volRubMln: 9400, rsi: 48.2, nw: 'NEUTRAL', cci: -24, stch: 46.0 },
-  { ticker: 'NVTK', fullName: 'НОВАТЭК ПАО', color: '#3879F2', bluechip: true, price: 1042.60, change: -1.88, volDiffBase: 29.4, volRubMln: 11200, rsi: 72.8, nw: 'SELL', cci: 119, stch: 82.3 },
-  { ticker: 'PLZL', fullName: 'Полюс ПАО', color: '#D97706', bluechip: true, price: 14890.00, change: 2.76, volDiffBase: 81.2, volRubMln: 16400, rsi: 26.2, nw: 'BUY', cci: -126, stch: 15.9 },
-  { ticker: 'GMKN', fullName: 'ГМК Норильский никель', color: '#0284C7', bluechip: true, price: 118.45, change: -0.64, volDiffBase: -32.0, volRubMln: 6800, rsi: 54.5, nw: 'NEUTRAL', cci: 42, stch: 58.2 },
-  { ticker: 'SNGS', fullName: 'Сургутнефтегаз ПАО', color: '#2563EB', bluechip: false, price: 26.84, change: 1.54, volDiffBase: 24.6, volRubMln: 8100, rsi: 28.4, nw: 'BUY', cci: -92, stch: 19.4 },
-  { ticker: 'CHMF', fullName: 'Северсталь ПАО', color: '#4F46E5', bluechip: false, price: 1284.00, change: -2.35, volDiffBase: 47.1, volRubMln: 7900, rsi: 78.2, nw: 'SELL', cci: 164, stch: 91.0 },
-  { ticker: 'ALRS', fullName: 'АЛРОСА АК ПАО', color: '#0EA5E9', bluechip: false, price: 54.90, change: -0.18, volDiffBase: -41.5, volRubMln: 3200, rsi: 44.0, nw: 'NEUTRAL', cci: -15, stch: 39.5 },
-  { ticker: 'AFLT', fullName: 'Аэрофлот ПАО', color: '#3B82F6', bluechip: false, price: 61.25, change: 3.12, volDiffBase: 112.5, volRubMln: 14300, rsi: 21.8, nw: 'BUY', cci: -149, stch: 12.4 },
-  { ticker: 'MOEX', fullName: 'Московская Биржа ПАО', color: '#E11D48', bluechip: false, price: 218.70, change: -1.62, volDiffBase: 19.8, volRubMln: 8900, rsi: 71.5, nw: 'SELL', cci: 112, stch: 79.2 },
+  { ticker: 'SBER', fullName: 'Сбербанк России ПАО', color: '#19B26B', bluechip: true, price: 284.65, prevClose: 278.58, change: 2.18, volDiffBase: 68.4, volRubMln: 48200, rsi: 24.6, nw: 'BUY', cci: -138, stch: 14.2 },
+  { ticker: 'T', fullName: 'Т-Технологии МКПАО', color: '#FFDD2D', textDark: true, bluechip: true, price: 2942.50, prevClose: 2845.20, change: 3.42, volDiffBase: 94.2, volRubMln: 31500, rsi: 22.1, nw: 'BUY', cci: -154, stch: 11.8 },
+  { ticker: 'LKOH', fullName: 'ЛУКОЙЛ НК ПАО', color: '#F23645', bluechip: true, price: 7148.00, prevClose: 7253.17, change: -1.45, volDiffBase: 42.0, volRubMln: 22900, rsi: 76.4, nw: 'SELL', cci: 148, stch: 88.5 },
+  { ticker: 'GAZP', fullName: 'Газпром ПАО', color: '#336FEE', bluechip: true, price: 136.82, prevClose: 139.81, change: -2.14, volDiffBase: 55.8, volRubMln: 28400, rsi: 74.1, nw: 'SELL', cci: 132, stch: 84.1 },
+  { ticker: 'YDEX', fullName: 'МКАО Яндекс', color: '#F23645', bluechip: true, price: 4125.00, prevClose: 4046.10, change: 1.95, volDiffBase: 38.5, volRubMln: 18700, rsi: 27.9, nw: 'BUY', cci: -118, stch: 18.6 },
+  { ticker: 'ROSN', fullName: 'НК Роснефть ПАО', color: '#F59E0B', textDark: true, bluechip: true, price: 518.40, prevClose: 516.23, change: 0.42, volDiffBase: -18.4, volRubMln: 9400, rsi: 48.2, nw: 'NEUTRAL', cci: -24, stch: 46.0 },
+  { ticker: 'NVTK', fullName: 'НОВАТЭК ПАО', color: '#3879F2', bluechip: true, price: 1042.60, prevClose: 1062.58, change: -1.88, volDiffBase: 29.4, volRubMln: 11200, rsi: 72.8, nw: 'SELL', cci: 119, stch: 82.3 },
+  { ticker: 'PLZL', fullName: 'Полюс ПАО', color: '#D97706', bluechip: true, price: 14890.00, prevClose: 14490.07, change: 2.76, volDiffBase: 81.2, volRubMln: 16400, rsi: 26.2, nw: 'BUY', cci: -126, stch: 15.9 },
+  { ticker: 'GMKN', fullName: 'ГМК Норильский никель', color: '#0284C7', bluechip: true, price: 118.45, prevClose: 119.21, change: -0.64, volDiffBase: -32.0, volRubMln: 6800, rsi: 54.5, nw: 'NEUTRAL', cci: 42, stch: 58.2 },
+  { ticker: 'SNGS', fullName: 'Сургутнефтегаз ПАО', color: '#2563EB', bluechip: false, price: 26.84, prevClose: 26.43, change: 1.54, volDiffBase: 24.6, volRubMln: 8100, rsi: 28.4, nw: 'BUY', cci: -92, stch: 19.4 },
+  { ticker: 'CHMF', fullName: 'Северсталь ПАО', color: '#4F46E5', bluechip: false, price: 1284.00, prevClose: 1314.89, change: -2.35, volDiffBase: 47.1, volRubMln: 7900, rsi: 78.2, nw: 'SELL', cci: 164, stch: 91.0 },
+  { ticker: 'ALRS', fullName: 'АЛРОСА АК ПАО', color: '#0EA5E9', bluechip: false, price: 54.90, prevClose: 55.00, change: -0.18, volDiffBase: -41.5, volRubMln: 3200, rsi: 44.0, nw: 'NEUTRAL', cci: -15, stch: 39.5 },
+  { ticker: 'AFLT', fullName: 'Аэрофлот ПАО', color: '#3B82F6', bluechip: false, price: 61.25, prevClose: 59.40, change: 3.12, volDiffBase: 112.5, volRubMln: 14300, rsi: 21.8, nw: 'BUY', cci: -149, stch: 12.4 },
+  { ticker: 'MOEX', fullName: 'Московская Биржа ПАО', color: '#E11D48', bluechip: false, price: 218.70, prevClose: 222.30, change: -1.62, volDiffBase: 19.8, volRubMln: 8900, rsi: 71.5, nw: 'SELL', cci: 112, stch: 79.2 },
 ];
 
 export const BLUE_CHIPS = new Set([
@@ -79,6 +79,166 @@ function applyTimeframe(item, tfLabel) {
   }
 }
 
+// Module-level reactive state
+const instruments = reactive(JSON.parse(JSON.stringify(initialInstruments)));
+const timeframe = ref('15м');
+const assetFilter = ref('all');
+const strategyMode = ref('rsi_nw');
+const useCCI = ref(true);
+const useSTCH = ref(true);
+const searchQuery = ref('');
+const sortBy = ref('statusScore');
+const sortDesc = ref(true);
+const editFavoritesMode = ref(false);
+
+const groupColorIdx = ref(loadInitialSignalFilterIdx());
+const linkGroupColor = computed(() => SIGNAL_MODES[groupColorIdx.value].color);
+const linkGroupTooltip = computed(() => `Фильтр сигналов: ${SIGNAL_MODES[groupColorIdx.value].label} (клик для смены)`);
+
+// Sorting revision & stable ordering map
+const sortRevision = ref(0);
+const tickerOrderMap = ref(new Map());
+
+// Visual row flashing for real-time price updates (green/red)
+export const rowFlashMap = reactive({});
+const flashTimeouts = new Map();
+
+function triggerRowFlash(ticker, direction) {
+  const cls = direction === 'up' ? 'row-flash-up' : 'row-flash-down';
+
+  if (flashTimeouts.has(ticker)) {
+    clearTimeout(flashTimeouts.get(ticker));
+  }
+
+  // Force replay if same class was already active
+  if (rowFlashMap[ticker] === cls) {
+    rowFlashMap[ticker] = '';
+    Promise.resolve().then(() => {
+      rowFlashMap[ticker] = cls;
+    });
+  } else {
+    rowFlashMap[ticker] = cls;
+  }
+
+  const timer = setTimeout(() => {
+    if (rowFlashMap[ticker] === cls) {
+      rowFlashMap[ticker] = '';
+    }
+    flashTimeouts.delete(ticker);
+  }, 700);
+
+  flashTimeouts.set(ticker, timer);
+}
+
+// Micro-batching buffer using requestAnimationFrame (60 FPS rendering)
+let rafPending = false;
+const pendingStockUpdates = new Map();
+
+function scheduleFlush() {
+  if (rafPending) return;
+  rafPending = true;
+
+  const requestFn = (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function')
+    ? window.requestAnimationFrame
+    : (cb) => setTimeout(cb, 16);
+
+  requestFn(() => {
+    try {
+      flushPendingUpdates();
+    } finally {
+      rafPending = false;
+    }
+  });
+}
+
+function flushPendingUpdates() {
+  if (pendingStockUpdates.size === 0) return;
+
+  const currentTf = timeframe.value;
+
+  for (const [ticker, update] of pendingStockUpdates) {
+    let match = instruments.find(i => i.ticker === ticker);
+    if (!match) {
+      upsertBackendStocks([update]);
+      continue;
+    }
+
+    // 1. Price flash tracking & assignment
+    if (typeof update.price === 'number' && match.price !== undefined && match.price !== null) {
+      if (update.price > match.price) {
+        triggerRowFlash(ticker, 'up');
+      } else if (update.price < match.price) {
+        triggerRowFlash(ticker, 'down');
+      }
+      match.price = update.price;
+    }
+
+    // 2. Change percentage
+    if (update.change !== undefined && update.change !== null) {
+      match.change = update.change;
+    } else if (update.candleTick && match.prevClose && match.prevClose > 0 && typeof update.price === 'number') {
+      match.change = Number((((update.price - match.prevClose) / match.prevClose) * 100).toFixed(2));
+    }
+
+    // 3. prevClose
+    if (update.prevClose !== undefined && update.prevClose !== null) {
+      match.prevClose = update.prevClose;
+    }
+
+    // 4. Volume / Turnover
+    if (update.turnover !== undefined && update.turnover !== null) {
+      match.volRubMln = Math.round(update.turnover / 1000000);
+    } else if (update.vol !== undefined) {
+      match.volRubMln = Math.round(update.vol * (match.price || 1) / 1000000);
+    }
+
+    // 5. RVOL
+    if (update.rvol !== undefined && update.rvol !== null) {
+      match.volDiffBase = Math.round((update.rvol - 1.0) * 100);
+    }
+
+    // 6. Indicators & Timeframe
+    if (update.tf) {
+      match.tf = { ...match.tf, ...update.tf };
+      applyTimeframe(match, currentTf);
+    }
+  }
+
+  pendingStockUpdates.clear();
+}
+
+export function queueStockUpdates(updates) {
+  if (!updates) return;
+  const list = Array.isArray(updates) ? updates : [updates];
+  if (list.length === 0) return;
+
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i];
+    if (item && item.ticker) {
+      const existing = pendingStockUpdates.get(item.ticker) || {};
+      pendingStockUpdates.set(item.ticker, { ...existing, ...item });
+    }
+  }
+  scheduleFlush();
+}
+
+export function queueCandleTick(candle) {
+  if (!candle || !candle.ticker) return;
+  const existing = pendingStockUpdates.get(candle.ticker) || {};
+  pendingStockUpdates.set(candle.ticker, {
+    ...existing,
+    ticker: candle.ticker,
+    price: typeof candle.close === 'number' ? candle.close : existing.price,
+    candleTick: true,
+  });
+  scheduleFlush();
+}
+
+export function updateSingleStock(raw) {
+  if (!raw) return;
+  queueStockUpdates(raw);
+}
+
 export function upsertBackendStocks(stockList) {
   if (!Array.isArray(stockList) || stockList.length === 0) return;
   const currentTf = timeframe.value;
@@ -98,9 +258,10 @@ export function upsertBackendStocks(stockList) {
         textDark: false,
         bluechip: isBluechip,
         price: raw.price || 0,
+        prevClose: raw.prevClose || (raw.price && raw.change ? Number((raw.price / (1 + raw.change / 100)).toFixed(2)) : raw.price || 0),
         change: raw.change || 0,
         volDiffBase: raw.rvol ? Math.round((raw.rvol - 1.0) * 100) : 0,
-        volRubMln: raw.vol ? Math.round(raw.vol * (raw.price || 1) / 1000000) : 0,
+        volRubMln: raw.turnover ? Math.round(raw.turnover / 1000000) : (raw.vol ? Math.round(raw.vol * (raw.price || 1) / 1000000) : 0),
         rsi: 50,
         nw: 'NEUTRAL',
         cci: 0,
@@ -112,49 +273,33 @@ export function upsertBackendStocks(stockList) {
       instruments.push(match);
     } else {
       if (raw.price !== undefined) match.price = raw.price;
+      if (raw.prevClose !== undefined) match.prevClose = raw.prevClose;
       if (raw.change !== undefined) match.change = raw.change;
       if (raw.logoUrl) match.logoUrl = raw.logoUrl;
       if (raw.logoColor) match.logoColor = raw.logoColor;
       if (raw.description) match.fullName = raw.description;
       if (raw.rvol !== undefined) match.volDiffBase = Math.round((raw.rvol - 1.0) * 100);
-      if (raw.vol !== undefined) match.volRubMln = Math.round(raw.vol * (raw.price || match.price || 1) / 1000000);
+      if (raw.turnover !== undefined) {
+        match.volRubMln = Math.round(raw.turnover / 1000000);
+      } else if (raw.vol !== undefined) {
+        match.volRubMln = Math.round(raw.vol * (raw.price || match.price || 1) / 1000000);
+      }
       if (raw.tf) {
         match.tf = { ...match.tf, ...raw.tf };
       }
       applyTimeframe(match, currentTf);
     }
   });
+
+  sortRevision.value++;
 }
 
-export function updateSingleStock(raw) {
-  if (!raw || !raw.ticker) return;
-  let match = instruments.find(i => i.ticker === raw.ticker);
-  if (!match) return;
-
-  if (raw.price !== undefined) match.price = raw.price;
-  if (raw.change !== undefined) match.change = raw.change;
-  if (raw.rvol !== undefined) match.volDiffBase = Math.round((raw.rvol - 1.0) * 100);
-  if (raw.vol !== undefined) match.volRubMln = Math.round(raw.vol * (raw.price || match.price || 1) / 1000000);
-  if (raw.tf) {
-    match.tf = { ...match.tf, ...raw.tf };
-  }
-  applyTimeframe(match, timeframe.value);
+// Background throttled periodic sort reconciliation (every 5 seconds)
+if (typeof window !== 'undefined' && !window.__moexResortTimer) {
+  window.__moexResortTimer = setInterval(() => {
+    sortRevision.value++;
+  }, 5000);
 }
-
-const instruments = reactive(JSON.parse(JSON.stringify(initialInstruments)));
-const timeframe = ref('15м');
-const assetFilter = ref('all');
-const strategyMode = ref('rsi_nw');
-const useCCI = ref(true);
-const useSTCH = ref(true);
-const searchQuery = ref('');
-const sortBy = ref('statusScore');
-const sortDesc = ref(true);
-const editFavoritesMode = ref(false);
-
-const groupColorIdx = ref(loadInitialSignalFilterIdx());
-const linkGroupColor = computed(() => SIGNAL_MODES[groupColorIdx.value].color);
-const linkGroupTooltip = computed(() => `Фильтр сигналов: ${SIGNAL_MODES[groupColorIdx.value].label} (клик для смены)`);
 
 const lastNotified = {};
 
@@ -180,6 +325,8 @@ export function useScreenerState() {
     try {
       localStorage.setItem(STORAGE_KEY_SIGNAL_FILTER, String(groupColorIdx.value));
     } catch (e) {}
+    updateSortOrder();
+    sortRevision.value++;
   }
 
   function toggleEditFavoritesMode() {
@@ -193,6 +340,8 @@ export function useScreenerState() {
       sortBy.value = col;
       sortDesc.value = true;
     }
+    updateSortOrder();
+    sortRevision.value++;
   }
 
   function selectTimeframe(tf) {
@@ -200,6 +349,8 @@ export function useScreenerState() {
     instruments.forEach(item => {
       applyTimeframe(item, tf);
     });
+    updateSortOrder();
+    sortRevision.value++;
   }
 
   function resetFilters() {
@@ -212,6 +363,8 @@ export function useScreenerState() {
     useCCI.value = true;
     useSTCH.value = true;
     searchQuery.value = '';
+    updateSortOrder();
+    sortRevision.value++;
   }
 
   function evaluateSignals(item) {
@@ -353,7 +506,46 @@ export function useScreenerState() {
     });
   });
 
-  // Filtered rows applying the signal color filter
+  // Recompute stable sort order without jitter
+  function updateSortOrder() {
+    const current = [...universeRows.value];
+    current.sort((a, b) => {
+      let valA = a[sortBy.value];
+      let valB = b[sortBy.value];
+      if (sortBy.value === 'ticker') {
+        return sortDesc.value ? valB.localeCompare(valA) : valA.localeCompare(valB);
+      }
+      if (sortBy.value === 'nw') {
+        valA = a.nwSignal;
+        valB = b.nwSignal;
+      }
+      return sortDesc.value ? (valB - valA) : (valA - valB);
+    });
+    tickerOrderMap.value = new Map(current.map((item, idx) => [item.ticker, idx]));
+  }
+
+  // Update order when sorting criteria, filters, or revision change
+  watch(
+    [
+      sortBy,
+      sortDesc,
+      timeframe,
+      assetFilter,
+      strategyMode,
+      useCCI,
+      useSTCH,
+      groupColorIdx,
+      searchQuery,
+      () => instruments.length,
+      sortRevision,
+    ],
+    () => {
+      updateSortOrder();
+    },
+    { immediate: true }
+  );
+
+  // Filtered rows applying the signal color filter with jitter-free positioning
   const filteredAndSortedRows = computed(() => {
     const mode = SIGNAL_MODES[groupColorIdx.value]?.id || 'all';
 
@@ -370,17 +562,27 @@ export function useScreenerState() {
       return true; // 'all'
     });
 
+    const orderMap = tickerOrderMap.value;
+    if (!orderMap || orderMap.size === 0) {
+      res.sort((a, b) => {
+        let valA = a[sortBy.value];
+        let valB = b[sortBy.value];
+        if (sortBy.value === 'ticker') {
+          return sortDesc.value ? valB.localeCompare(valA) : valA.localeCompare(valB);
+        }
+        if (sortBy.value === 'nw') {
+          valA = a.nwSignal;
+          valB = b.nwSignal;
+        }
+        return sortDesc.value ? (valB - valA) : (valA - valB);
+      });
+      return res;
+    }
+
     res.sort((a, b) => {
-      let valA = a[sortBy.value];
-      let valB = b[sortBy.value];
-      if (sortBy.value === 'ticker') {
-        return sortDesc.value ? valB.localeCompare(valA) : valA.localeCompare(valB);
-      }
-      if (sortBy.value === 'nw') {
-        valA = a.nwSignal;
-        valB = b.nwSignal;
-      }
-      return sortDesc.value ? (valB - valA) : (valA - valB);
+      const idxA = orderMap.has(a.ticker) ? orderMap.get(a.ticker) : 999999;
+      const idxB = orderMap.has(b.ticker) ? orderMap.get(b.ticker) : 999999;
+      return idxA - idxB;
     });
 
     return res;
@@ -434,6 +636,7 @@ export function useScreenerState() {
     searchQuery,
     sortBy,
     sortDesc,
+    rowFlashMap,
     editFavoritesMode,
     linkGroupColor,
     linkGroupTooltip,
@@ -445,6 +648,8 @@ export function useScreenerState() {
     cycleLinkGroupColor,
     toggleEditFavoritesMode,
     getActiveTickers,
+    queueStockUpdates,
+    queueCandleTick,
     BLUE_CHIPS,
     SIGNAL_MODES,
   };
