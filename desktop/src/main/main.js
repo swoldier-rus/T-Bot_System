@@ -26,7 +26,7 @@ function createWindow() {
     width: 1420,
     height: 880,
     minWidth: 960,
-    minHeight: 620,
+    minHeight: 180,
     frame: false, // Frameless window
     backgroundColor: '#12151B',
     show: false,

@@ -570,11 +570,13 @@ html, body {
 .settings-dialog {
     width: 100%;
     max-width: 540px;
+    max-height: 95vh;
     background-color: var(--background-main);
     border: 1px solid var(--background-divider);
     border-radius: 12px;
     box-shadow: 0 12px 42px rgba(0, 0, 0, 0.65);
     overflow: hidden;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
 }
