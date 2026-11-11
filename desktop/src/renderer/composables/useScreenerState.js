@@ -136,10 +136,15 @@ const linkGroupColor = computed(() => groupColors[groupColorIdx.value]);
 
 const lastNotified = {};
 
-// When switching to 'rsi_only', disable CCI and start with STCH OFF (pure RSI).
-// When switching back to 'rsi_nw', restore both CCI and STCH.
+// Strategy switching presets:
+// - rsi_only: disable CCI, default STCH to OFF (pure RSI).
+// - nw_only: default CCI and STCH to OFF (pure NW).
+// - rsi_nw: enable both CCI and STCH (display/highlight only, strict 2-indicator confluence).
 watch(strategyMode, (newMode) => {
   if (newMode === 'rsi_only') {
+    useCCI.value = false;
+    useSTCH.value = false;
+  } else if (newMode === 'nw_only') {
     useCCI.value = false;
     useSTCH.value = false;
   } else if (newMode === 'rsi_nw') {
@@ -224,13 +229,20 @@ export function useScreenerState() {
         }
       }
     } else if (strategyMode.value === 'nw_only') {
-      // Only NW
-      if (nwSignal === 1) {
+      // 3. Only NW (+ optional confluence with CCI and/or STCH if active)
+      const checkBuy = nwSignal === 1 && (!useCCI.value || cciSignal === 1) && (!useSTCH.value || stchSignal === 1);
+      const checkSell = nwSignal === -1 && (!useCCI.value || cciSignal === -1) && (!useSTCH.value || stchSignal === -1);
+
+      if (checkBuy) {
         finalStatus = 'BUY';
         reasons.push('NW (Покупка)');
-      } else if (nwSignal === -1) {
+        if (useCCI.value) reasons.push(`CCI (${item.cci > 0 ? '+' + item.cci : item.cci})`);
+        if (useSTCH.value) reasons.push(`STCH (${item.stch.toFixed(1)})`);
+      } else if (checkSell) {
         finalStatus = 'SELL';
         reasons.push('NW (Продажа)');
+        if (useCCI.value) reasons.push(`CCI (${item.cci > 0 ? '+' + item.cci : item.cci})`);
+        if (useSTCH.value) reasons.push(`STCH (${item.stch.toFixed(1)})`);
       }
     } else if (strategyMode.value === 'rsi_or_nw') {
       // RSI or NW

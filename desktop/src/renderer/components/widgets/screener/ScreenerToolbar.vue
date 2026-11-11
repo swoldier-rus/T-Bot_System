@@ -37,7 +37,7 @@
       :model-value="useCCI"
       :disabled="strategyMode === 'rsi_only'"
       label="CCI"
-      :title="strategyMode === 'rsi_only' ? 'CCI отключен в режиме Только RSI' : 'Включить/выключить индекс товарного канала'"
+      :title="strategyMode === 'rsi_only' ? 'CCI отключен в режиме Только RSI' : (strategyMode === 'nw_only' ? 'Фильтрация по CCI (совместно с NW)' : 'Включить/выключить индекс товарного канала')"
       @update:model-value="$emit('update:useCCI', $event)"
     />
 
@@ -45,7 +45,7 @@
     <UiToggleChip
       :model-value="useSTCH"
       label="STCH"
-      :title="strategyMode === 'rsi_only' ? 'Включить/выключить фильтрацию по STCH (совместно с RSI)' : 'Включить/выключить стохастический осциллятор'"
+      :title="strategyMode === 'rsi_only' ? 'Фильтрация по STCH (совместно с RSI)' : (strategyMode === 'nw_only' ? 'Фильтрация по STCH (совместно с NW)' : 'Включить/выключить стохастический осциллятор')"
       @update:model-value="$emit('update:useSTCH', $event)"
     />
 
