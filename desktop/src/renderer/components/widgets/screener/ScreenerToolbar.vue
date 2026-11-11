@@ -107,6 +107,7 @@ const assetOptions = [
   { value: 'all', label: 'Все акции', badge: 'MOEX', badgeClass: 'opacity-75' },
   { value: 'favorites', label: 'Избранные', badge: '★', badgeClass: 'opacity-75' },
   { value: 'bluechips', label: 'Голубые фишки', badge: '⚡', badgeClass: 'text-[#2CE89C]' },
+  { value: 'tbank_favorites', label: 'Избранное Т-Банк', badge: '💛', badgeClass: 'text-[#FFDD2D]' },
 ];
 
 const strategyOptions = [

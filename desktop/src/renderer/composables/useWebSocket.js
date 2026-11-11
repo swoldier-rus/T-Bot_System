@@ -8,25 +8,55 @@ const serverPingLabel = ref('MOEX · 14 мс');
 
 export function useWebSocket() {
   const { assetFilter, filteredAndSortedRows, getActiveTickers } = useScreenerState();
-  const { getFavoritesArray } = useFavorites();
+  const {
+    getFavoritesArray,
+    getTBankFavoritesArray,
+    setTBankFavorites,
+    fetchTBankFavorites,
+  } = useFavorites();
+
   let ws = null;
+  let currentPort = 3001;
   let simInterval = null;
   let universeDebounceTimer = null;
 
   function sendActiveUniverse() {
     if (ws && ws.readyState === WebSocket.OPEN) {
-      const isFav = assetFilter.value === 'favorites';
-      const tickers = isFav ? getFavoritesArray() : getActiveTickers();
+      const mode = assetFilter.value;
+      let listMode = 'all_stocks';
+      let tickers = null;
+
+      if (mode === 'favorites') {
+        listMode = 'favorites';
+        tickers = getFavoritesArray();
+      } else if (mode === 'bluechips') {
+        listMode = 'bluechips';
+        tickers = getActiveTickers();
+      } else if (mode === 'tbank_favorites') {
+        listMode = 'tbank_favorites';
+        tickers = getTBankFavoritesArray();
+      } else {
+        listMode = 'all_stocks';
+        tickers = null;
+      }
+
       ws.send(JSON.stringify({
         action: 'SET_ACTIVE_UNIVERSE',
-        listMode: isFav ? 'favorites' : 'all_stocks',
-        tickers: tickers && tickers.length > 0 ? tickers : ['SBER', 'GAZP', 'LKOH', 'GMKN', 'NVTK'],
+        listMode,
+        tickers,
       }));
     }
   }
 
   // Watch for filter/search/universe changes and debounced delta sync
   watch([assetFilter, () => filteredAndSortedRows.value.length], () => {
+    if (assetFilter.value === 'tbank_favorites' && getTBankFavoritesArray().length === 0) {
+      fetchTBankFavorites(currentPort);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ action: 'GET_FAVORITES' }));
+      }
+    }
+
     if (universeDebounceTimer) clearTimeout(universeDebounceTimer);
     universeDebounceTimer = setTimeout(() => {
       sendActiveUniverse();
@@ -63,6 +93,7 @@ export function useWebSocket() {
         if (st && st.port) wsPort = st.port;
       } catch (e) {}
     }
+    currentPort = wsPort;
 
     const wsUrl = `ws://127.0.0.1:${wsPort}/stream`;
 
@@ -82,6 +113,10 @@ export function useWebSocket() {
             simInterval = null;
           }
 
+          // Fetch T-Bank favorites immediately upon open (both WS and REST fallback)
+          ws.send(JSON.stringify({ action: 'GET_FAVORITES' }));
+          fetchTBankFavorites(wsPort);
+
           sendActiveUniverse();
         };
 
@@ -91,6 +126,11 @@ export function useWebSocket() {
 
             if (msg.event === 'SNAPSHOT' && Array.isArray(msg.data)) {
               upsertBackendStocks(msg.data);
+            } else if (msg.event === 'FAVORITES' && msg.data) {
+              const tbTickers = Array.isArray(msg.data.tickers) ? msg.data.tickers : [];
+              if (tbTickers.length > 0) {
+                setTBankFavorites(tbTickers);
+              }
             } else if (msg.event === 'TICKER_UPDATE' || msg.event === 'CANDLE_TICK') {
               if (msg.data) {
                 updateSingleStock(msg.data);

@@ -19,7 +19,7 @@ const initialInstruments = [
   { ticker: 'MOEX', fullName: 'Московская Биржа ПАО', color: '#E11D48', bluechip: false, price: 218.70, change: -1.62, volDiffBase: 19.8, volRubMln: 8900, rsi: 71.5, nw: 'SELL', cci: 112, stch: 79.2 },
 ];
 
-const BLUE_CHIPS = new Set([
+export const BLUE_CHIPS = new Set([
   'SBER', 'SBERP', 'GAZP', 'LKOH', 'GMKN', 'NVTK', 'YDEX', 'YNDX', 'ROSN',
   'MGNT', 'TATN', 'TATNP', 'MTSS', 'CHMF', 'NLMK', 'MAGN', 'ALRS', 'PLZL',
   'IRAO', 'VTBR', 'SNGS', 'SNGSP', 'TRNFP', 'MOEX', 'AFLT', 'PHOR', 'T', 'SVCB'
@@ -137,7 +137,7 @@ const linkGroupColor = computed(() => groupColors[groupColorIdx.value]);
 const lastNotified = {};
 
 export function useScreenerState() {
-  const { favorites } = useFavorites();
+  const { favorites, tbankFavorites } = useFavorites();
   const { settings } = useSettings();
 
   function cycleLinkGroupColor() {
@@ -265,8 +265,11 @@ export function useScreenerState() {
       }
       if (assetFilter.value === 'favorites') {
         if (!favSet.has(row.ticker)) return false;
+      } else if (assetFilter.value === 'bluechips') {
+        if (!row.bluechip && !BLUE_CHIPS.has(row.ticker)) return false;
+      } else if (assetFilter.value === 'tbank_favorites') {
+        if (!tbankFavorites.value.has(row.ticker)) return false;
       }
-      if (assetFilter.value === 'bluechips' && !row.bluechip) return false;
       return true;
     });
 
@@ -304,6 +307,20 @@ export function useScreenerState() {
   });
 
   function getActiveTickers() {
+    if (assetFilter.value === 'all') {
+      return null;
+    }
+    if (assetFilter.value === 'bluechips') {
+      return Array.from(BLUE_CHIPS);
+    }
+    if (assetFilter.value === 'favorites') {
+      const favs = Array.from(favorites.value);
+      return favs.length > 0 ? favs : ['SBER', 'GAZP', 'LKOH', 'GMKN', 'NVTK'];
+    }
+    if (assetFilter.value === 'tbank_favorites') {
+      const tbFavs = Array.from(tbankFavorites.value);
+      return tbFavs.length > 0 ? tbFavs : ['SBER', 'GAZP', 'LKOH', 'GMKN', 'NVTK'];
+    }
     const visible = filteredAndSortedRows.value.slice(0, 60).map(r => r.ticker);
     return visible.length > 0 ? visible : ['SBER', 'GAZP', 'LKOH', 'GMKN', 'NVTK'];
   }
@@ -328,5 +345,6 @@ export function useScreenerState() {
     cycleLinkGroupColor,
     toggleEditFavoritesMode,
     getActiveTickers,
+    BLUE_CHIPS,
   };
 }
