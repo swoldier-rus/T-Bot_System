@@ -238,24 +238,20 @@ export function useScreenerState() {
         reasons.push(`RSI (${item.rsi.toFixed(1)})`, 'NW (Продажа)');
       }
     } else if (strategyMode.value === 'rsi_only') {
-      // 2. Only RSI (+ optional STCH confluence if STCH toggle is active)
-      if (useSTCH.value) {
-        if (rsiSignal === 1 && stchSignal === 1) {
-          finalStatus = 'BUY';
-          reasons.push(`RSI (${item.rsi.toFixed(1)})`, `STCH (${item.stch.toFixed(1)})`);
-        } else if (rsiSignal === -1 && stchSignal === -1) {
-          finalStatus = 'SELL';
-          reasons.push(`RSI (${item.rsi.toFixed(1)})`, `STCH (${item.stch.toFixed(1)})`);
-        }
-      } else {
-        // Pure RSI signal
-        if (rsiSignal === 1) {
-          finalStatus = 'BUY';
-          reasons.push(`RSI (${item.rsi.toFixed(1)})`);
-        } else if (rsiSignal === -1) {
-          finalStatus = 'SELL';
-          reasons.push(`RSI (${item.rsi.toFixed(1)})`);
-        }
+      // 2. Only RSI (+ optional confluence with CCI and/or STCH if active)
+      const checkBuy = rsiSignal === 1 && (!useCCI.value || cciSignal === 1) && (!useSTCH.value || stchSignal === 1);
+      const checkSell = rsiSignal === -1 && (!useCCI.value || cciSignal === -1) && (!useSTCH.value || stchSignal === -1);
+
+      if (checkBuy) {
+        finalStatus = 'BUY';
+        reasons.push(`RSI (${item.rsi.toFixed(1)})`);
+        if (useCCI.value) reasons.push(`CCI (${item.cci > 0 ? '+' + item.cci : item.cci})`);
+        if (useSTCH.value) reasons.push(`STCH (${item.stch.toFixed(1)})`);
+      } else if (checkSell) {
+        finalStatus = 'SELL';
+        reasons.push(`RSI (${item.rsi.toFixed(1)})`);
+        if (useCCI.value) reasons.push(`CCI (${item.cci > 0 ? '+' + item.cci : item.cci})`);
+        if (useSTCH.value) reasons.push(`STCH (${item.stch.toFixed(1)})`);
       }
     } else if (strategyMode.value === 'nw_only') {
       // 3. Only NW (+ optional confluence with CCI and/or STCH if active)

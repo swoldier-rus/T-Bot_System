@@ -35,9 +35,8 @@
     <!-- 4. CCI Toggle -->
     <UiToggleChip
       :model-value="useCCI"
-      :disabled="strategyMode === 'rsi_only'"
       label="CCI"
-      :title="strategyMode === 'rsi_only' ? 'CCI отключен в режиме Только RSI' : (strategyMode === 'nw_only' ? 'Фильтрация по CCI (совместно с NW)' : 'Включить/выключить индекс товарного канала')"
+      :title="strategyMode === 'rsi_only' ? 'Фильтрация по CCI (совместно с RSI)' : (strategyMode === 'nw_only' ? 'Фильтрация по CCI (совместно с NW)' : 'Включить/выключить индекс товарного канала')"
       @update:model-value="$emit('update:useCCI', $event)"
     />
 
