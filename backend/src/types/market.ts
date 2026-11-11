@@ -86,6 +86,7 @@ export interface StockItem {
     '15m': StockTfIndicators;
     '1h': StockTfIndicators;
     '4h': StockTfIndicators;
+    '1d': StockTfIndicators;
   };
 }
 

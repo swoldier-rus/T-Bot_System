@@ -627,6 +627,16 @@ export class StreamManager {
     if (candles.length >= minCount) {
       const lastTime = candles[candles.length - 1].time;
       const now = Date.now();
+
+      // For daily candles: if the latest bar is from a previous calendar day, fetch today's active bar
+      if (tf === '1d') {
+        const todayUtcStart = new Date().setUTCHours(0, 0, 0, 0);
+        if (lastTime < todayUtcStart) {
+          return new Date(lastTime - intervalMs);
+        }
+        return null;
+      }
+
       // If the latest cached bar is within one bar duration, it's already fresh!
       if (now - lastTime < intervalMs) {
         return null;
@@ -654,25 +664,29 @@ export class StreamManager {
     // 4h: 100 bars (~90 days)
     const from4h = this.getOptimalFromDate(ticker, '4h', 4 * 60 * 60 * 1000, 80, 90 * 24 * 60 * 60 * 1000, forceFresh);
     // 1d: 50 bars (~365 days)
-    const from1d = this.getOptimalFromDate(ticker, '1d', 24 * 60 * 60 * 1000, 30, 365 * 24 * 60 * 60 * 1000, forceFresh);
+    const from1d = this.getOptimalFromDate(ticker, '1d', 24 * 60 * 60 * 1000, 200, 365 * 24 * 60 * 60 * 1000, forceFresh);
 
     // If all timeframes are already fresh in cache, no API requests needed!
     if (!from5m && !from15m && !from1h && !from4h && !from1d) {
       return true;
     }
 
-    const mapCandle = (c: any, tf: string): Candle => ({
-      figi: inst.figi,
-      ticker: inst.ticker,
-      timeframe: tf as any,
-      time: c.time ? new Date(c.time).getTime() : Date.now(),
-      open: Helpers.toNumber(c.open) || 0,
-      high: Helpers.toNumber(c.high) || 0,
-      low: Helpers.toNumber(c.low) || 0,
-      close: Helpers.toNumber(c.close) || 0,
-      volume: c.volume || 0,
-      isComplete: c.isComplete ?? true,
-    });
+    const mapCandle = (c: any, tf: string): Candle => {
+      const rawTime = c.time ? new Date(c.time).getTime() : Date.now();
+      const candleTime = tf === '1d' ? new Date(rawTime).setUTCHours(0, 0, 0, 0) : rawTime;
+      return {
+        figi: inst.figi,
+        ticker: inst.ticker,
+        timeframe: tf as any,
+        time: candleTime,
+        open: Helpers.toNumber(c.open) || 0,
+        high: Helpers.toNumber(c.high) || 0,
+        low: Helpers.toNumber(c.low) || 0,
+        close: Helpers.toNumber(c.close) || 0,
+        volume: c.volume || 0,
+        isComplete: c.isComplete ?? true,
+      };
+    };
 
     try {
       const requests: Promise<void>[] = [];

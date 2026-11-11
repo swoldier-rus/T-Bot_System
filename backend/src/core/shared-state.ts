@@ -79,6 +79,7 @@ export class SharedState implements ISharedStateReader {
           '15m': { rsi: null, k: null, d: null },
           '1h': { rsi: null, k: null, d: null },
           '4h': { rsi: null, k: null, d: null },
+          '1d': { rsi: null, k: null, d: null },
         },
       });
     } else {
@@ -315,7 +316,7 @@ export class SharedState implements ISharedStateReader {
     const stock = this.stockItems.get(ticker);
     if (!stock) return;
 
-    for (const tf of ['5m', '15m', '1h', '4h'] as const) {
+    for (const tf of ['5m', '15m', '1h', '4h', '1d'] as const) {
       const candles = this.getCandles(ticker, tf);
       stock.tf[tf] = this.calcTfIndicators(
         candles,
@@ -402,6 +403,17 @@ export class SharedState implements ISharedStateReader {
       params.nwRepaint ?? this.defaultParams.nwRepaint,
       params.cciPeriod ?? this.defaultParams.cciPeriod
     );
+    const tf1d = this.calcTfIndicators(
+      this.getCandles(ticker, '1d'),
+      params.rsiPeriod,
+      params.stochK,
+      params.stochSmooth,
+      params.stochD,
+      params.nwBandwidth ?? this.defaultParams.nwBandwidth,
+      params.nwMult ?? this.defaultParams.nwMult,
+      params.nwRepaint ?? this.defaultParams.nwRepaint,
+      params.cciPeriod ?? this.defaultParams.cciPeriod
+    );
 
     const dailyCandles = this.getCandles(ticker, '1d');
     let dailyRsi: number | null = null;
@@ -420,6 +432,7 @@ export class SharedState implements ISharedStateReader {
         '15m': tf15m,
         '1h': tf1h,
         '4h': tf4h,
+        '1d': tf1d,
       },
     };
     return customStock;
@@ -445,12 +458,12 @@ export class SharedState implements ISharedStateReader {
     const stock = this.stockItems.get(ticker);
     if (!stock) return;
 
-    const validTfs = ['5m', '15m', '1h', '4h'] as const;
+    const validTfs = ['5m', '15m', '1h', '4h', '1d'] as const;
     const isTargetTf = validTfs.includes(tf as any);
 
     if (isTargetTf) {
       const candles = this.getCandles(ticker, tf);
-      const tfKey = tf as '5m' | '15m' | '1h' | '4h';
+      const tfKey = tf as '5m' | '15m' | '1h' | '4h' | '1d';
       stock.tf[tfKey] = this.calcTfIndicators(
         candles,
         this.defaultParams.rsiPeriod,

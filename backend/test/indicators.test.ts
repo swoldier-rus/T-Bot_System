@@ -7,7 +7,8 @@ import {
   detectDivergence,
   evaluateRsiStochRules,
 } from '../src/modules/rsi-stoch/signal-rules';
-import { Candle } from '../src/types/market';
+import { Candle, Instrument } from '../src/types/market';
+import { SharedState } from '../src/core/shared-state';
 
 describe('Indicators Math: RSI & Stochastic', () => {
   describe('calculateRSI', () => {
@@ -179,6 +180,92 @@ describe('Indicators Math: RSI & Stochastic', () => {
 
       const div = detectDivergence(candles, rsiValues);
       expect(div).toBe('BULLISH');
+    });
+  });
+  describe('Daily Timeframe (1d) Full Indicator Parity in SharedState', () => {
+    it('calculates RSI, STCH, CCI, and Nadaraya-Watson for 1d and updates on new 1d candles', () => {
+      const state = new SharedState();
+      const instrument: Instrument = {
+        ticker: 'SBER',
+        figi: 'BBG004730N88',
+        name: 'Сбербанк',
+        lot: 10,
+      };
+      state.setInstrument(instrument);
+
+      const dayMs = 86400000;
+      const baseTime = 1700000000000;
+      const dailyCandles: Candle[] = [];
+
+      for (let i = 0; i < 40; i++) {
+        const price = 250 + Math.sin(i / 5) * 20;
+        dailyCandles.push({
+          figi: 'BBG004730N88',
+          ticker: 'SBER',
+          timeframe: '1d',
+          time: baseTime + i * dayMs,
+          open: price - 1,
+          high: price + 2,
+          low: price - 2,
+          close: price,
+          volume: 10000 + i * 500,
+          isComplete: true,
+        });
+      }
+
+      state.setCandles('SBER', '1d', dailyCandles);
+
+      const stock = state.getStockItem('SBER');
+      expect(stock).toBeDefined();
+      expect(stock?.tf).toBeDefined();
+      expect(stock?.tf['1d']).toBeDefined();
+
+      // Check all 4 indicators on 1d
+      const tf1d = stock!.tf['1d'];
+      expect(tf1d.rsi).not.toBeNull();
+      expect(typeof tf1d.rsi).toBe('number');
+      expect(tf1d.rsi).toBeGreaterThan(0);
+      expect(tf1d.rsi).toBeLessThan(100);
+
+      expect(tf1d.k).not.toBeNull();
+      expect(typeof tf1d.k).toBe('number');
+
+      expect(tf1d.d).not.toBeNull();
+      expect(typeof tf1d.d).toBe('number');
+
+      expect(tf1d.cci).not.toBeNull();
+      expect(typeof tf1d.cci).toBe('number');
+
+      expect(tf1d.nw).toBeDefined();
+      expect(tf1d.nw?.signal).toBeDefined();
+      expect(['BUY', 'SELL', 'NEUTRAL']).toContain(tf1d.nw?.signal);
+
+      // Verify formatStockItem preserves 1d
+      const formatted = state.formatStockItem(stock!);
+      expect(formatted.tf['1d']).toBeDefined();
+      expect(formatted.tf['1d'].rsi).toBe(tf1d.rsi);
+
+      // Real-time candle update
+      const initialRsi = tf1d.rsi;
+      const newCandle: Candle = {
+        figi: 'BBG004730N88',
+        ticker: 'SBER',
+        timeframe: '1d',
+        time: baseTime + 40 * dayMs,
+        open: 300,
+        high: 320,
+        low: 295,
+        close: 318, // sharp spike up
+        volume: 25000,
+        isComplete: false,
+      };
+
+      state.updateCandle(newCandle);
+
+      const updatedStock = state.getStockItem('SBER');
+      expect(updatedStock!.tf['1d'].rsi).toBeDefined();
+      // Price spike should shift daily RSI upward
+      expect(updatedStock!.tf['1d'].rsi).toBeGreaterThan(initialRsi!);
     });
   });
 });

@@ -79,6 +79,26 @@ function applyTimeframe(item, tfLabel) {
   }
 }
 
+// Populate initial fallback tf maps for seamless offline viewing
+initialInstruments.forEach(item => {
+  if (!item.tf) {
+    const baseTf = {
+      rsi: item.rsi,
+      k: item.stch,
+      d: item.stch,
+      cci: item.cci,
+      nw: { signal: item.nw },
+    };
+    item.tf = {
+      '5m': { ...baseTf },
+      '15m': { ...baseTf },
+      '1h': { ...baseTf },
+      '4h': { ...baseTf },
+      '1d': { ...baseTf },
+    };
+  }
+});
+
 // Module-level reactive state
 const instruments = reactive(JSON.parse(JSON.stringify(initialInstruments)));
 const timeframe = ref('15м');
