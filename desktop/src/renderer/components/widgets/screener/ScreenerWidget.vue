@@ -3,10 +3,11 @@
     <!-- 1. Header -->
     <ScreenerHeader
       :timeframe="timeframe"
-      :total-count="counts.total"
+      :total-count="counts.filtered"
       v-model:search-query="searchQuery"
       :edit-favorites-mode="editFavoritesMode"
       :link-group-color="linkGroupColor"
+      :link-group-tooltip="linkGroupTooltip"
       @cycle-color="cycleLinkGroupColor"
       @toggle-edit-favorites="toggleEditFavoritesMode"
       @open-settings="isSettingsOpen = true"
@@ -99,6 +100,7 @@ const {
   sortDesc,
   editFavoritesMode,
   linkGroupColor,
+  linkGroupTooltip,
   filteredAndSortedRows,
   counts,
   selectTimeframe,
@@ -120,32 +122,34 @@ const {
 
 const {
   serverOnline,
+  realConnected,
   serverPingLabel,
   toggleServerConnection,
-  start,
-  stop,
+  syncFavoritesWithBackend,
+  start: startWS,
+  stop: stopWS,
 } = useWebSocket();
 
 function handleSaveSettings(newSettings) {
   settings.volumeDaysX = newSettings.volumeDaysX;
   settings.thresholds = { ...newSettings.thresholds };
   persist();
+  isSettingsOpen.value = false;
 }
 
 function triggerMarketPulse() {
-  instruments.forEach(item => {
-    const impulse = (Math.random() - 0.45) * 1.8;
-    item.price = Math.max(1, Number((item.price * (1 + impulse / 100)).toFixed(2)));
-    item.change = Number((item.change + impulse * 0.5).toFixed(2));
-    item.volDiffBase = Number((item.volDiffBase + Math.abs(impulse) * 14).toFixed(1));
-  });
+  const pulseEl = document.getElementById('screener-widget');
+  if (pulseEl) {
+    pulseEl.classList.add('widget-pulse');
+    setTimeout(() => pulseEl.classList.remove('widget-pulse'), 1200);
+  }
 }
 
 onMounted(() => {
-  start();
+  startWS();
 });
 
 onUnmounted(() => {
-  stop();
+  stopWS();
 });
 </script>

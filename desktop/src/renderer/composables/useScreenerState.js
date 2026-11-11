@@ -25,6 +25,28 @@ export const BLUE_CHIPS = new Set([
   'IRAO', 'VTBR', 'SNGS', 'SNGSP', 'TRNFP', 'MOEX', 'AFLT', 'PHOR', 'T', 'SVCB'
 ]);
 
+export const SIGNAL_MODES = [
+  { id: 'all', color: '#336FEE', label: 'Все акции' },
+  { id: 'signals', color: '#FFDD2D', label: 'Все сигналы (Лонг + Шорт)' },
+  { id: 'buy', color: '#2CE89C', label: 'Только Лонг' },
+  { id: 'sell', color: '#FF6969', label: 'Только Шорт' },
+];
+
+const STORAGE_KEY_SIGNAL_FILTER = 'moex_screener_signal_filter_idx';
+
+function loadInitialSignalFilterIdx() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SIGNAL_FILTER);
+    if (raw !== null) {
+      const parsed = parseInt(raw, 10);
+      if (!isNaN(parsed) && parsed >= 0 && parsed < SIGNAL_MODES.length) {
+        return parsed;
+      }
+    }
+  } catch (e) {}
+  return 0; // Default to Blue (Все акции)
+}
+
 const TF_MAP = {
   '1м': '5m',
   '5м': '5m',
@@ -130,9 +152,9 @@ const sortBy = ref('statusScore');
 const sortDesc = ref(true);
 const editFavoritesMode = ref(false);
 
-const groupColors = ['#336FEE', '#FFDD2D', '#2CE89C', '#FF6969', '#A855F7'];
-const groupColorIdx = ref(0);
-const linkGroupColor = computed(() => groupColors[groupColorIdx.value]);
+const groupColorIdx = ref(loadInitialSignalFilterIdx());
+const linkGroupColor = computed(() => SIGNAL_MODES[groupColorIdx.value].color);
+const linkGroupTooltip = computed(() => `Фильтр сигналов: ${SIGNAL_MODES[groupColorIdx.value].label} (клик для смены)`);
 
 const lastNotified = {};
 
@@ -158,7 +180,10 @@ export function useScreenerState() {
   const { settings } = useSettings();
 
   function cycleLinkGroupColor() {
-    groupColorIdx.value = (groupColorIdx.value + 1) % groupColors.length;
+    groupColorIdx.value = (groupColorIdx.value + 1) % SIGNAL_MODES.length;
+    try {
+      localStorage.setItem(STORAGE_KEY_SIGNAL_FILTER, String(groupColorIdx.value));
+    } catch (e) {}
   }
 
   function toggleEditFavoritesMode() {
@@ -184,6 +209,10 @@ export function useScreenerState() {
   function resetFilters() {
     assetFilter.value = 'all';
     strategyMode.value = 'rsi_nw';
+    groupColorIdx.value = 0;
+    try {
+      localStorage.setItem(STORAGE_KEY_SIGNAL_FILTER, '0');
+    } catch (e) {}
     useCCI.value = true;
     useSTCH.value = true;
     searchQuery.value = '';
@@ -302,11 +331,12 @@ export function useScreenerState() {
     }));
   });
 
-  const filteredAndSortedRows = computed(() => {
+  // Base rows matching search query and asset filter (universe scope)
+  const universeRows = computed(() => {
     const q = searchQuery.value.trim().toLowerCase();
     const favSet = favorites.value;
 
-    let res = enrichedRows.value.filter(row => {
+    return enrichedRows.value.filter(row => {
       if (q && !row.ticker.toLowerCase().includes(q) && !row.fullName.toLowerCase().includes(q)) {
         return false;
       }
@@ -318,6 +348,24 @@ export function useScreenerState() {
         if (!tbankFavorites.value.has(row.ticker)) return false;
       }
       return true;
+    });
+  });
+
+  // Filtered rows applying the signal color filter
+  const filteredAndSortedRows = computed(() => {
+    const mode = SIGNAL_MODES[groupColorIdx.value]?.id || 'all';
+
+    let res = universeRows.value.filter(row => {
+      if (mode === 'signals') {
+        return row.finalStatus === 'BUY' || row.finalStatus === 'SELL';
+      }
+      if (mode === 'buy') {
+        return row.finalStatus === 'BUY';
+      }
+      if (mode === 'sell') {
+        return row.finalStatus === 'SELL';
+      }
+      return true; // 'all'
     });
 
     res.sort((a, b) => {
@@ -336,17 +384,19 @@ export function useScreenerState() {
     return res;
   });
 
+  // Summary counts for universe + filtered count for header
   const counts = computed(() => {
     let buy = 0;
     let sell = 0;
     let neutral = 0;
-    filteredAndSortedRows.value.forEach(r => {
+    universeRows.value.forEach(r => {
       if (r.finalStatus === 'BUY') buy++;
       else if (r.finalStatus === 'SELL') sell++;
       else neutral++;
     });
     return {
-      total: filteredAndSortedRows.value.length,
+      total: universeRows.value.length,
+      filtered: filteredAndSortedRows.value.length,
       buy,
       sell,
       neutral,
@@ -368,7 +418,7 @@ export function useScreenerState() {
       const tbFavs = Array.from(tbankFavorites.value);
       return tbFavs.length > 0 ? tbFavs : ['SBER', 'GAZP', 'LKOH', 'GMKN', 'NVTK'];
     }
-    const visible = filteredAndSortedRows.value.slice(0, 60).map(r => r.ticker);
+    const visible = universeRows.value.slice(0, 60).map(r => r.ticker);
     return visible.length > 0 ? visible : ['SBER', 'GAZP', 'LKOH', 'GMKN', 'NVTK'];
   }
 
@@ -384,6 +434,7 @@ export function useScreenerState() {
     sortDesc,
     editFavoritesMode,
     linkGroupColor,
+    linkGroupTooltip,
     filteredAndSortedRows,
     counts,
     selectTimeframe,
@@ -393,5 +444,6 @@ export function useScreenerState() {
     toggleEditFavoritesMode,
     getActiveTickers,
     BLUE_CHIPS,
+    SIGNAL_MODES,
   };
 }

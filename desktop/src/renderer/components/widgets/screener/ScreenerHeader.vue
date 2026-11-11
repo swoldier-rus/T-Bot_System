@@ -7,7 +7,7 @@
         @click="$emit('cycleColor')"
         class="w-3.5 h-3.5 rounded-full ring-2 shrink-0 cursor-pointer border-none transition"
         :style="{ backgroundColor: linkGroupColor, '--tw-ring-color': linkGroupColor + '4D' }"
-        title="Группа связки виджета (кликните для смены цвета)"
+        :title="linkGroupTooltip"
       ></button>
 
       <span class="font-semibold text-[13px] tracking-tight truncate" style="color: var(--text-primary);">
@@ -98,7 +98,7 @@
         <button
           type="button"
           class="window-control-btn close-btn"
-          title="Свернуть в трей"
+          title="Закрыть"
           @click="closeWindow"
         >
           &#10005;
@@ -133,6 +133,10 @@ defineProps({
     type: String,
     default: '#336FEE',
   },
+  linkGroupTooltip: {
+    type: String,
+    default: 'Фильтр сигналов (клик для смены)',
+  },
 });
 
 defineEmits([
@@ -144,42 +148,66 @@ defineEmits([
 
 const isMaximized = ref(false);
 const isFullscreen = ref(false);
-let cleanupStateListener = null;
+let removeStateListener = null;
 
 onMounted(() => {
   if (typeof window.electronAPI !== 'undefined') {
     if (window.electronAPI.isMaximized) {
-      window.electronAPI.isMaximized().then(val => { isMaximized.value = !!val; }).catch(() => {});
+      window.electronAPI.isMaximized().then(val => {
+        isMaximized.value = !!val;
+      }).catch(() => {});
     }
     if (window.electronAPI.isFullscreen) {
-      window.electronAPI.isFullscreen().then(val => { isFullscreen.value = !!val; }).catch(() => {});
+      window.electronAPI.isFullscreen().then(val => {
+        isFullscreen.value = !!val;
+      }).catch(() => {});
     }
     if (window.electronAPI.onWindowStateChange) {
-      cleanupStateListener = window.electronAPI.onWindowStateChange((state) => {
-        if (typeof state.isMaximized === 'boolean') isMaximized.value = state.isMaximized;
-        if (typeof state.isFullscreen === 'boolean') isFullscreen.value = state.isFullscreen;
+      removeStateListener = window.electronAPI.onWindowStateChange(state => {
+        if (typeof state.isMaximized === 'boolean') {
+          isMaximized.value = state.isMaximized;
+        }
+        if (typeof state.isFullscreen === 'boolean') {
+          isFullscreen.value = state.isFullscreen;
+        }
       });
     }
   }
 });
 
 onUnmounted(() => {
-  if (cleanupStateListener) cleanupStateListener();
+  if (typeof removeStateListener === 'function') {
+    removeStateListener();
+  }
 });
 
 function minimizeWindow() {
-  if (window.electronAPI?.minimize) window.electronAPI.minimize();
+  if (typeof window.electronAPI !== 'undefined' && window.electronAPI.minimizeWindow) {
+    window.electronAPI.minimizeWindow();
+  }
 }
 
 function maximizeWindow() {
-  if (window.electronAPI?.maximize) window.electronAPI.maximize();
+  if (typeof window.electronAPI !== 'undefined' && window.electronAPI.maximizeWindow) {
+    window.electronAPI.maximizeWindow().then(res => {
+      isMaximized.value = !!res;
+    }).catch(() => {});
+  }
 }
 
 function toggleFullscreen() {
-  if (window.electronAPI?.toggleFullscreen) window.electronAPI.toggleFullscreen();
+  if (typeof window.electronAPI !== 'undefined' && window.electronAPI.toggleFullscreen) {
+    window.electronAPI.toggleFullscreen().then(res => {
+      isFullscreen.value = !!res;
+    }).catch(() => {});
+  }
 }
 
 function closeWindow() {
-  if (window.electronAPI?.close) window.electronAPI.close();
+  if (typeof window.electronAPI !== 'undefined' && window.electronAPI.closeWindow) {
+    window.electronAPI.closeWindow();
+  } else {
+    window.close();
+  }
 }
 </script>
