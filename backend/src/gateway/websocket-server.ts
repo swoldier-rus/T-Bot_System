@@ -239,10 +239,10 @@ export class GatewayWebSocketServer {
         }
 
         case 'SET_ACTIVE_UNIVERSE': {
-          if (parsed.listMode === 'all_stocks' || parsed.listMode === 'all') {
-            ws.activeUniverse = null;
-          } else if (Array.isArray(parsed.tickers)) {
+          if (Array.isArray(parsed.tickers) && parsed.tickers.length > 0) {
             ws.activeUniverse = new Set(parsed.tickers.map((t) => t.toUpperCase()));
+          } else if (parsed.listMode === 'all_stocks' || parsed.listMode === 'all') {
+            ws.activeUniverse = null;
           }
 
           // 1. Recalculate global union of all connected tabs
