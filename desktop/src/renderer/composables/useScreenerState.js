@@ -1,4 +1,4 @@
-import { ref, computed, reactive } from 'vue';
+import { ref, computed, reactive, watch } from 'vue';
 import { useFavorites } from './useFavorites';
 import { useSettings } from './useSettings';
 
@@ -136,6 +136,18 @@ const linkGroupColor = computed(() => groupColors[groupColorIdx.value]);
 
 const lastNotified = {};
 
+// When switching to 'rsi_only', disable CCI and start with STCH OFF (pure RSI).
+// When switching back to 'rsi_nw', restore both CCI and STCH.
+watch(strategyMode, (newMode) => {
+  if (newMode === 'rsi_only') {
+    useCCI.value = false;
+    useSTCH.value = false;
+  } else if (newMode === 'rsi_nw') {
+    useCCI.value = true;
+    useSTCH.value = true;
+  }
+});
+
 export function useScreenerState() {
   const { favorites, tbankFavorites } = useFavorites();
   const { settings } = useSettings();
@@ -179,42 +191,58 @@ export function useScreenerState() {
     const cciSignal = item.cci <= t.cciLow ? 1 : (item.cci >= t.cciHigh ? -1 : 0);
     const stchSignal = item.stch <= t.stchLow ? 1 : (item.stch >= t.stchHigh ? -1 : 0);
 
-    const activeVotes = [];
+    let finalStatus = 'NEUTRAL';
     const reasons = [];
 
-    if (strategyMode.value === 'rsi_only') {
-      activeVotes.push(rsiSignal * 2);
-      if (rsiSignal !== 0) reasons.push(`RSI (${item.rsi.toFixed(1)})`);
+    if (strategyMode.value === 'rsi_nw') {
+      // 1. RSI + NW: BUY or SELL strictly when BOTH indicators agree
+      if (rsiSignal === 1 && nwSignal === 1) {
+        finalStatus = 'BUY';
+        reasons.push(`RSI (${item.rsi.toFixed(1)})`, 'NW (Покупка)');
+      } else if (rsiSignal === -1 && nwSignal === -1) {
+        finalStatus = 'SELL';
+        reasons.push(`RSI (${item.rsi.toFixed(1)})`, 'NW (Продажа)');
+      }
+    } else if (strategyMode.value === 'rsi_only') {
+      // 2. Only RSI (+ optional STCH confluence if STCH toggle is active)
+      if (useSTCH.value) {
+        if (rsiSignal === 1 && stchSignal === 1) {
+          finalStatus = 'BUY';
+          reasons.push(`RSI (${item.rsi.toFixed(1)})`, `STCH (${item.stch.toFixed(1)})`);
+        } else if (rsiSignal === -1 && stchSignal === -1) {
+          finalStatus = 'SELL';
+          reasons.push(`RSI (${item.rsi.toFixed(1)})`, `STCH (${item.stch.toFixed(1)})`);
+        }
+      } else {
+        // Pure RSI signal
+        if (rsiSignal === 1) {
+          finalStatus = 'BUY';
+          reasons.push(`RSI (${item.rsi.toFixed(1)})`);
+        } else if (rsiSignal === -1) {
+          finalStatus = 'SELL';
+          reasons.push(`RSI (${item.rsi.toFixed(1)})`);
+        }
+      }
     } else if (strategyMode.value === 'nw_only') {
-      activeVotes.push(nwSignal * 2);
-      if (nwSignal !== 0) reasons.push(`NW (${item.nw === 'BUY' ? 'Покупка' : 'Продажа'})`);
-    } else {
-      activeVotes.push(rsiSignal);
-      activeVotes.push(nwSignal);
-      if (rsiSignal !== 0) reasons.push(`RSI (${item.rsi.toFixed(1)})`);
-      if (nwSignal !== 0) reasons.push(`NW (${item.nw === 'BUY' ? 'Покупка' : 'Продажа'})`);
-    }
-
-    if (useCCI.value) {
-      activeVotes.push(cciSignal);
-      if (cciSignal !== 0) reasons.push(`CCI (${item.cci > 0 ? '+' + item.cci : item.cci})`);
-    }
-    if (useSTCH.value) {
-      activeVotes.push(stchSignal);
-      if (stchSignal !== 0) reasons.push(`STCH (${item.stch.toFixed(1)})`);
-    }
-
-    const buyVotes = activeVotes.filter(v => v > 0).length;
-    const sellVotes = activeVotes.filter(v => v < 0).length;
-    const totalScore = activeVotes.reduce((acc, v) => acc + v, 0);
-
-    let finalStatus = 'NEUTRAL';
-    if (strategyMode.value === 'rsi_or_nw') {
-      if ((rsiSignal > 0 || nwSignal > 0) && sellVotes === 0) finalStatus = 'BUY';
-      else if ((rsiSignal < 0 || nwSignal < 0) && buyVotes === 0) finalStatus = 'SELL';
-    } else {
-      if (totalScore >= 2 || (buyVotes >= 2 && sellVotes === 0)) finalStatus = 'BUY';
-      else if (totalScore <= -2 || (sellVotes >= 2 && buyVotes === 0)) finalStatus = 'SELL';
+      // Only NW
+      if (nwSignal === 1) {
+        finalStatus = 'BUY';
+        reasons.push('NW (Покупка)');
+      } else if (nwSignal === -1) {
+        finalStatus = 'SELL';
+        reasons.push('NW (Продажа)');
+      }
+    } else if (strategyMode.value === 'rsi_or_nw') {
+      // RSI or NW
+      if ((rsiSignal > 0 || nwSignal > 0) && rsiSignal >= 0 && nwSignal >= 0) {
+        finalStatus = 'BUY';
+        if (rsiSignal > 0) reasons.push(`RSI (${item.rsi.toFixed(1)})`);
+        if (nwSignal > 0) reasons.push('NW (Покупка)');
+      } else if ((rsiSignal < 0 || nwSignal < 0) && rsiSignal <= 0 && nwSignal <= 0) {
+        finalStatus = 'SELL';
+        if (rsiSignal < 0) reasons.push(`RSI (${item.rsi.toFixed(1)})`);
+        if (nwSignal < 0) reasons.push('NW (Продажа)');
+      }
     }
 
     const dayFactor = 20 / settings.volumeDaysX;
@@ -236,13 +264,20 @@ export function useScreenerState() {
       }
     }
 
+    let statusScore = 0;
+    if (finalStatus === 'BUY') {
+      statusScore = 10 + (rsiSignal > 0 ? 1 : 0) + (nwSignal > 0 ? 1 : 0) + (stchSignal > 0 ? 1 : 0) + (cciSignal > 0 ? 1 : 0);
+    } else if (finalStatus === 'SELL') {
+      statusScore = -10 - (rsiSignal < 0 ? 1 : 0) - (nwSignal < 0 ? 1 : 0) - (stchSignal < 0 ? 1 : 0) - (cciSignal < 0 ? 1 : 0);
+    }
+
     return {
       rsiSignal,
       nwSignal,
       cciSignal,
       stchSignal,
       finalStatus,
-      statusScore: finalStatus === 'BUY' ? 10 + totalScore : (finalStatus === 'SELL' ? -10 + totalScore : totalScore),
+      statusScore,
       reasonsText: reasons.length ? reasons.join(' + ') : 'Нет выраженных сигналов',
       volumeDiff,
     };

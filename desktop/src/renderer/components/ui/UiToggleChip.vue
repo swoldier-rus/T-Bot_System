@@ -2,13 +2,17 @@
   <button
     type="button"
     class="ind-toggle-chip"
-    :class="{ active: modelValue }"
-    :title="title"
-    @click="$emit('update:modelValue', !modelValue)"
+    :class="{
+      active: modelValue && !disabled,
+      'opacity-40 cursor-not-allowed pointer-events-none': disabled
+    }"
+    :title="disabled ? 'Недоступно в текущем режиме стратегии' : title"
+    :disabled="disabled"
+    @click="!disabled && $emit('update:modelValue', !modelValue)"
   >
     <span class="ind-toggle-dot"></span>
     <span>{{ label }}</span>
-    <span class="text-[10px] font-mono opacity-70">{{ modelValue ? 'ON' : 'OFF' }}</span>
+    <span class="text-[10px] font-mono opacity-70">{{ modelValue && !disabled ? 'ON' : 'OFF' }}</span>
   </button>
 </template>
 
@@ -25,6 +29,10 @@ defineProps({
   title: {
     type: String,
     default: '',
+  },
+  disabled: {
+    type: Boolean,
+    default: false,
   },
 });
 
