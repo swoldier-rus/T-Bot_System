@@ -89,15 +89,6 @@
         </button>
         <button
           type="button"
-          class="window-control-btn"
-          :title="isFullscreen ? 'Обычный режим (Esc)' : 'Полный экран'"
-          @click="toggleFullscreen"
-        >
-          <span v-if="isFullscreen">&#10530;</span>
-          <span v-else>&#9974;</span>
-        </button>
-        <button
-          type="button"
           class="window-control-btn close-btn"
           title="Закрыть"
           @click="closeWindow"
@@ -148,7 +139,6 @@ defineEmits([
 ]);
 
 const isMaximized = ref(false);
-const isFullscreen = ref(false);
 let removeStateListener = null;
 
 onMounted(() => {
@@ -158,18 +148,10 @@ onMounted(() => {
         isMaximized.value = !!val;
       }).catch(() => {});
     }
-    if (window.electronAPI.isFullscreen) {
-      window.electronAPI.isFullscreen().then(val => {
-        isFullscreen.value = !!val;
-      }).catch(() => {});
-    }
     if (window.electronAPI.onWindowStateChange) {
       removeStateListener = window.electronAPI.onWindowStateChange(state => {
         if (typeof state.isMaximized === 'boolean') {
           isMaximized.value = state.isMaximized;
-        }
-        if (typeof state.isFullscreen === 'boolean') {
-          isFullscreen.value = state.isFullscreen;
         }
       });
     }
@@ -205,14 +187,6 @@ function maximizeWindow() {
       window.electronAPI.maximize();
     } else if (typeof window.electronAPI.maximizeWindow === 'function') {
       window.electronAPI.maximizeWindow();
-    }
-  }
-}
-
-function toggleFullscreen() {
-  if (typeof window.electronAPI !== 'undefined') {
-    if (typeof window.electronAPI.toggleFullscreen === 'function') {
-      window.electronAPI.toggleFullscreen();
     }
   }
 }
