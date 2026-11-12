@@ -66,6 +66,12 @@ function createWindow() {
   mainWindow.on('leave-full-screen', () => {
     mainWindow.webContents.send('window-state-changed', { isFullscreen: false });
   });
+  mainWindow.on('always-on-top-changed', (_event, isAlwaysOnTop) => {
+    mainWindow.webContents.send('window-state-changed', { isAlwaysOnTop });
+    if (trayController) {
+      trayController.updateContextMenu();
+    }
+  });
 
   // Minimize to tray on close
   mainWindow.on('close', (event) => {
@@ -101,6 +107,16 @@ ipcMain.on('window-fullscreen-toggle', () => {
   mainWindow.setFullScreen(!mainWindow.isFullScreen());
 });
 
+ipcMain.on('window-set-always-on-top', (_event, flag) => {
+  if (!mainWindow) return;
+  const target = typeof flag === 'boolean' ? flag : !mainWindow.isAlwaysOnTop();
+  mainWindow.setAlwaysOnTop(target);
+  mainWindow.webContents.send('window-state-changed', { isAlwaysOnTop: target });
+  if (trayController) {
+    trayController.updateContextMenu();
+  }
+});
+
 ipcMain.on('window-close', () => {
   if (mainWindow) mainWindow.close();
 });
@@ -111,6 +127,10 @@ ipcMain.handle('window-is-maximized', () => {
 
 ipcMain.handle('window-is-fullscreen', () => {
   return mainWindow ? mainWindow.isFullScreen() : false;
+});
+
+ipcMain.handle('window-is-always-on-top', () => {
+  return mainWindow ? mainWindow.isAlwaysOnTop() : false;
 });
 
 // Backend management IPC

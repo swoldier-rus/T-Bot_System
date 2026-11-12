@@ -65,6 +65,45 @@
         </svg>
       </button>
 
+      <!-- Pin (Always on top) button (Icon only) -->
+      <button
+        type="button"
+        @click="toggleAlwaysOnTop"
+        class="w-[26px] h-[26px] rounded flex items-center justify-center transition cursor-pointer border border-transparent"
+        :class="isAlwaysOnTop
+          ? '!bg-[#336FEE] !text-white !border-[#428BF9]'
+          : 'bg-transparent hover:bg-[rgba(112,139,164,0.20)] text-[var(--text-secondary)]'"
+        :title="isAlwaysOnTop ? 'Открепить (поверх всех окон)' : 'Закрепить поверх всех окон'"
+      >
+        <svg
+          v-if="isAlwaysOnTop"
+          class="w-3.5 h-3.5 text-white"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <line x1="12" y1="17" x2="12" y2="22" stroke-width="2" />
+          <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+        </svg>
+        <svg
+          v-else
+          class="w-3.5 h-3.5"
+          style="color: var(--icon-primary);"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <line x1="12" y1="17" x2="12" y2="22" />
+          <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+        </svg>
+      </button>
+
       <!-- Divider -->
       <div class="h-4 w-[1px] bg-[rgba(140,167,190,0.18)] mx-0.5"></div>
 
@@ -139,19 +178,42 @@ defineEmits([
 ]);
 
 const isMaximized = ref(false);
+const isAlwaysOnTop = ref(false);
 let removeStateListener = null;
 
 onMounted(() => {
+  // Restore persisted "always on top" preference
+  try {
+    const saved = localStorage.getItem('moex_screener_always_on_top');
+    if (saved === 'true') {
+      isAlwaysOnTop.value = true;
+      if (typeof window.electronAPI !== 'undefined' && typeof window.electronAPI.setAlwaysOnTop === 'function') {
+        window.electronAPI.setAlwaysOnTop(true);
+      }
+    }
+  } catch (e) {}
+
   if (typeof window.electronAPI !== 'undefined') {
     if (window.electronAPI.isMaximized) {
       window.electronAPI.isMaximized().then(val => {
         isMaximized.value = !!val;
       }).catch(() => {});
     }
+    if (window.electronAPI.isAlwaysOnTop) {
+      window.electronAPI.isAlwaysOnTop().then(val => {
+        isAlwaysOnTop.value = !!val;
+      }).catch(() => {});
+    }
     if (window.electronAPI.onWindowStateChange) {
       removeStateListener = window.electronAPI.onWindowStateChange(state => {
         if (typeof state.isMaximized === 'boolean') {
           isMaximized.value = state.isMaximized;
+        }
+        if (typeof state.isAlwaysOnTop === 'boolean') {
+          isAlwaysOnTop.value = state.isAlwaysOnTop;
+          try {
+            localStorage.setItem('moex_screener_always_on_top', String(state.isAlwaysOnTop));
+          } catch (e) {}
         }
       });
     }
@@ -163,6 +225,17 @@ onUnmounted(() => {
     removeStateListener();
   }
 });
+
+function toggleAlwaysOnTop() {
+  const nextVal = !isAlwaysOnTop.value;
+  isAlwaysOnTop.value = nextVal;
+  try {
+    localStorage.setItem('moex_screener_always_on_top', String(nextVal));
+  } catch (e) {}
+  if (typeof window.electronAPI !== 'undefined' && typeof window.electronAPI.setAlwaysOnTop === 'function') {
+    window.electronAPI.setAlwaysOnTop(nextVal);
+  }
+}
 
 function handleHeaderDblClick(e) {
   if (e.target && typeof e.target.closest === 'function' && e.target.closest('button, input, select, .no-drag')) {

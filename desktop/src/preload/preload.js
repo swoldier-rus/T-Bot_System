@@ -9,8 +9,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   close: () => ipcRenderer.send('window-close'),
   closeWindow: () => ipcRenderer.send('window-close'),
   toggleFullscreen: () => ipcRenderer.send('window-fullscreen-toggle'),
+  setAlwaysOnTop: (flag) => ipcRenderer.send('window-set-always-on-top', flag),
   isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
   isFullscreen: () => ipcRenderer.invoke('window-is-fullscreen'),
+  isAlwaysOnTop: () => ipcRenderer.invoke('window-is-always-on-top'),
 
   // Backend controls & status
   getBackendStatus: () => ipcRenderer.invoke('backend-get-status'),

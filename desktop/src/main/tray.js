@@ -39,6 +39,16 @@ function setupTray(mainWindow) {
           mainWindow.setFullScreen(!mainWindow.isFullScreen());
         },
       },
+      {
+        label: 'Поверх всех окон',
+        type: 'checkbox',
+        checked: mainWindow ? mainWindow.isAlwaysOnTop() : false,
+        click: (menuItem) => {
+          if (!mainWindow) return;
+          mainWindow.setAlwaysOnTop(menuItem.checked);
+          mainWindow.webContents.send('window-state-changed', { isAlwaysOnTop: menuItem.checked });
+        },
+      },
       { type: 'separator' },
       {
         label: `Бэкенд: ${backendStatus.status === 'running' ? '● В сети (8080)' : '○ Остановлен'}`,
