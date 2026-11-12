@@ -33,35 +33,36 @@
         @update:model-value="$emit('update:searchQuery', $event)"
       />
 
-      <!-- Edit Favorites Mode Toggle -->
+      <!-- Edit Favorites Mode Toggle (Icon only) -->
       <button
         type="button"
         @click="$emit('toggleEditFavorites')"
-        class="h-[26px] px-2 rounded flex items-center gap-1.5 text-[12px] font-medium transition cursor-pointer border border-transparent"
+        class="w-[26px] h-[26px] rounded flex items-center justify-center transition cursor-pointer border border-transparent"
         :class="editFavoritesMode
           ? '!bg-[#336FEE] !text-white !border-[#428BF9]'
           : 'bg-transparent hover:bg-[rgba(112,139,164,0.20)] text-[var(--text-secondary)]'"
-        :title="editFavoritesMode ? 'Сохранить выбор избранных и скрыть чекбоксы' : 'Выбрать избранные инструменты (чекбоксы)'"
+        :title="editFavoritesMode ? 'Готово (сохранить выбор избранных)' : 'Изменить избранные инструменты'"
       >
-        <svg class="w-3.5 h-3.5" style="color: var(--icon-primary);" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <svg v-if="editFavoritesMode" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+        <svg v-else class="w-3.5 h-3.5" style="color: var(--icon-primary);" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
         </svg>
-        <span class="hidden sm:inline">{{ editFavoritesMode ? 'Готово' : 'Изменить' }}</span>
       </button>
 
-      <!-- Settings button -->
+      <!-- Settings button (Icon only) -->
       <button
         type="button"
         @click="$emit('openSettings')"
-        class="h-[26px] px-2 rounded flex items-center gap-1.5 text-[12px] font-medium bg-transparent hover:bg-[rgba(112,139,164,0.20)] transition cursor-pointer border-none"
+        class="w-[26px] h-[26px] rounded flex items-center justify-center bg-transparent hover:bg-[rgba(112,139,164,0.20)] transition cursor-pointer border-none"
         style="color: var(--text-secondary);"
-        title="Настройки индикаторов, периода объема и внешнего вида"
+        title="Настройки"
       >
         <svg class="w-3.5 h-3.5" style="color: var(--icon-primary);" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <circle cx="12" cy="12" r="3" />
         </svg>
-        <span class="hidden sm:inline">настройки</span>
       </button>
 
       <!-- Divider -->
