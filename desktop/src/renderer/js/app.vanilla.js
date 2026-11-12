@@ -218,8 +218,8 @@ function renderTable(flashedTicker = null, flashDir = 0) {
 
     const thCci = document.getElementById('th-cci-col');
     const thStch = document.getElementById('th-stch-col');
-    if (thCci) thCci.classList.toggle('col-muted', !state.useCCI);
-    if (thStch) thStch.classList.toggle('col-muted', !state.useSTCH);
+    // thCci col-muted removed
+    // thStch col-muted removed
 
     const favSet = getFavoritesSet();
 
@@ -393,11 +393,11 @@ function renderTable(flashedTicker = null, flashDir = 0) {
                     <span class="sig-pill ${nwClass}">${nwLabel}</span>
                 </td>
 
-                <td class="text-center font-mono ${state.useCCI ? '' : 'col-muted'}">
+                <td class="text-center font-mono ">
                     <span class="sig-pill ${cciClass} min-w-[50px]">${cciFormatted}</span>
                 </td>
 
-                <td class="text-center font-mono ${state.useSTCH ? '' : 'col-muted'}">
+                <td class="text-center font-mono ">
                     <span class="sig-pill ${stchClass} min-w-[48px]">${row.stch.toFixed(1)}</span>
                 </td>
 

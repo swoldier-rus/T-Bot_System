@@ -69,7 +69,6 @@
             :value="row.cci"
             :signal="row.cciSignal"
             type="cci"
-            :muted="!useCCI"
           />
 
           <!-- 7. STCH -->
@@ -77,7 +76,6 @@
             :value="row.stch"
             :signal="row.stchSignal"
             type="stch"
-            :muted="!useSTCH"
           />
 
           <!-- 8. Status -->

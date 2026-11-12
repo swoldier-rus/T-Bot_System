@@ -48,7 +48,6 @@
 
       <th
         class="w-[95px] text-center cursor-pointer"
-        :class="{ 'col-muted': !useCCI }"
         @click="$emit('sort', 'cci')"
       >
         <div class="flex items-center justify-center gap-1">
@@ -61,7 +60,6 @@
 
       <th
         class="w-[95px] text-center cursor-pointer"
-        :class="{ 'col-muted': !useSTCH }"
         @click="$emit('sort', 'stch')"
       >
         <div class="flex items-center justify-center gap-1">
