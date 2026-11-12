@@ -1,5 +1,5 @@
 <template>
-  <div class="pro-widget-header">
+  <div class="pro-widget-header" @dblclick="handleHeaderDblClick">
     <!-- Left: Link group dot + Title + TF Badge + Paper counter -->
     <div class="flex items-center gap-2.5 min-w-0 no-drag">
       <button
@@ -181,31 +181,50 @@ onUnmounted(() => {
   }
 });
 
+function handleHeaderDblClick(e) {
+  if (e.target && typeof e.target.closest === 'function' && e.target.closest('button, input, select, .no-drag')) {
+    return;
+  }
+  maximizeWindow();
+}
+
 function minimizeWindow() {
-  if (typeof window.electronAPI !== 'undefined' && window.electronAPI.minimizeWindow) {
-    window.electronAPI.minimizeWindow();
+  if (typeof window.electronAPI !== 'undefined') {
+    if (typeof window.electronAPI.minimize === 'function') {
+      window.electronAPI.minimize();
+    } else if (typeof window.electronAPI.minimizeWindow === 'function') {
+      window.electronAPI.minimizeWindow();
+    }
   }
 }
 
 function maximizeWindow() {
-  if (typeof window.electronAPI !== 'undefined' && window.electronAPI.maximizeWindow) {
-    window.electronAPI.maximizeWindow().then(res => {
-      isMaximized.value = !!res;
-    }).catch(() => {});
+  if (typeof window.electronAPI !== 'undefined') {
+    if (typeof window.electronAPI.maximize === 'function') {
+      window.electronAPI.maximize();
+    } else if (typeof window.electronAPI.maximizeWindow === 'function') {
+      window.electronAPI.maximizeWindow();
+    }
   }
 }
 
 function toggleFullscreen() {
-  if (typeof window.electronAPI !== 'undefined' && window.electronAPI.toggleFullscreen) {
-    window.electronAPI.toggleFullscreen().then(res => {
-      isFullscreen.value = !!res;
-    }).catch(() => {});
+  if (typeof window.electronAPI !== 'undefined') {
+    if (typeof window.electronAPI.toggleFullscreen === 'function') {
+      window.electronAPI.toggleFullscreen();
+    }
   }
 }
 
 function closeWindow() {
-  if (typeof window.electronAPI !== 'undefined' && window.electronAPI.closeWindow) {
-    window.electronAPI.closeWindow();
+  if (typeof window.electronAPI !== 'undefined') {
+    if (typeof window.electronAPI.close === 'function') {
+      window.electronAPI.close();
+    } else if (typeof window.electronAPI.closeWindow === 'function') {
+      window.electronAPI.closeWindow();
+    } else {
+      window.close();
+    }
   } else {
     window.close();
   }

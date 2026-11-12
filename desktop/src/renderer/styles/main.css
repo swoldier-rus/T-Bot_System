@@ -186,6 +186,7 @@ html, body {
 }
 
 .window-control-btn {
+    -webkit-app-region: no-drag;
     width: 30px;
     height: 26px;
     display: inline-flex;
