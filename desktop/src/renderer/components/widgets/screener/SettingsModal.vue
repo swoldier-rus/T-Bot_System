@@ -34,13 +34,7 @@
               class="p-2.5 bg-[#161B22] hover:bg-[#1C2128] cursor-pointer flex items-center justify-between select-none transition"
               @click="toggleSection('rsi')"
             >
-              <div class="flex items-center gap-2">
-                <span class="text-sm">📊</span>
-                <span class="font-medium text-xs text-white">RSI (Индекс относительной силы)</span>
-                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#12151B] text-[#8CA7BE] border border-[rgba(140,167,190,0.15)]">
-                  Период: {{ localIndicatorParams.rsiPeriod }} [{{ localThresholds.rsiLow }}/{{ localThresholds.rsiHigh }}]
-                </span>
-              </div>
+              <span class="font-medium text-xs text-white">RSI (Индекс относительной силы)</span>
               <span
                 class="text-xs text-[#8CA7BE] transition-transform duration-200"
                 :class="{ 'rotate-180': openSections.rsi }"
@@ -92,13 +86,7 @@
               class="p-2.5 bg-[#161B22] hover:bg-[#1C2128] cursor-pointer flex items-center justify-between select-none transition"
               @click="toggleSection('nw')"
             >
-              <div class="flex items-center gap-2">
-                <span class="text-sm">🌊</span>
-                <span class="font-medium text-xs text-white">Nadaraya-Watson (NW Envelope)</span>
-                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#12151B] text-[#8CA7BE] border border-[rgba(140,167,190,0.15)]">
-                  h: {{ localIndicatorParams.nwBandwidth }} | Mult: {{ localIndicatorParams.nwMult }}
-                </span>
-              </div>
+              <span class="font-medium text-xs text-white">NWE (Конверт Надарая-Ватсона)</span>
               <span
                 class="text-xs text-[#8CA7BE] transition-transform duration-200"
                 :class="{ 'rotate-180': openSections.nw }"
@@ -156,13 +144,7 @@
               class="p-2.5 bg-[#161B22] hover:bg-[#1C2128] cursor-pointer flex items-center justify-between select-none transition"
               @click="toggleSection('cci')"
             >
-              <div class="flex items-center gap-2">
-                <span class="text-sm">🧭</span>
-                <span class="font-medium text-xs text-white">CCI (Commodity Channel Index)</span>
-                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#12151B] text-[#8CA7BE] border border-[rgba(140,167,190,0.15)]">
-                  Период: {{ localIndicatorParams.cciPeriod }} [{{ localThresholds.cciLow }}/{{ localThresholds.cciHigh }}]
-                </span>
-              </div>
+              <span class="font-medium text-xs text-white">CCI (Индекс товарного канала)</span>
               <span
                 class="text-xs text-[#8CA7BE] transition-transform duration-200"
                 :class="{ 'rotate-180': openSections.cci }"
@@ -212,13 +194,7 @@
               class="p-2.5 bg-[#161B22] hover:bg-[#1C2128] cursor-pointer flex items-center justify-between select-none transition"
               @click="toggleSection('stch')"
             >
-              <div class="flex items-center gap-2">
-                <span class="text-sm">⚡</span>
-                <span class="font-medium text-xs text-white">Stochastic Oscillator (STCH)</span>
-                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#12151B] text-[#8CA7BE] border border-[rgba(140,167,190,0.15)]">
-                  %K: {{ localIndicatorParams.stochK }} [{{ localThresholds.stchLow }}/{{ localThresholds.stchHigh }}]
-                </span>
-              </div>
+              <span class="font-medium text-xs text-white">STCH (Стохастический осциллятор)</span>
               <span
                 class="text-xs text-[#8CA7BE] transition-transform duration-200"
                 :class="{ 'rotate-180': openSections.stch }"
@@ -291,13 +267,7 @@
               class="p-2.5 bg-[#161B22] hover:bg-[#1C2128] cursor-pointer flex items-center justify-between select-none transition"
               @click="toggleSection('rvol')"
             >
-              <div class="flex items-center gap-2">
-                <span class="text-sm">📦</span>
-                <span class="font-medium text-xs text-white">RVol (Относительный объем торгов)</span>
-                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#12151B] text-[#8CA7BE] border border-[rgba(140,167,190,0.15)]">
-                  Период: {{ localDaysX }} дн.
-                </span>
-              </div>
+              <span class="font-medium text-xs text-white">RVol (Относительный объем торгов)</span>
               <span
                 class="text-xs text-[#8CA7BE] transition-transform duration-200"
                 :class="{ 'rotate-180': openSections.rvol }"
