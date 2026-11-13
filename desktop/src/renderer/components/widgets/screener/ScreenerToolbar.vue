@@ -1,53 +1,56 @@
 <template>
-  <div class="pro-widget-toolbar flex flex-wrap items-center gap-x-2.5 gap-y-1.5 py-1.5">
-    <!-- Group 1: Timeframe selector -->
-    <div class="flex items-center shrink-0">
-      <TimeframeGroup
-        :model-value="timeframe"
-        @update:model-value="$emit('update:timeframe', $event)"
-      />
+  <div class="pro-widget-toolbar flex items-start justify-between gap-x-2.5 py-1.5">
+    <!-- Left: Wrapping filters container -->
+    <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 min-w-0 flex-1">
+      <!-- Group 1: Timeframe selector -->
+      <div class="flex items-center shrink-0">
+        <TimeframeGroup
+          :model-value="timeframe"
+          @update:model-value="$emit('update:timeframe', $event)"
+        />
+      </div>
+
+      <!-- Group 2: Assets & Strategy dropdowns -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <UiDropdown
+          :model-value="assetFilter"
+          :items="assetOptions"
+          title="Фильтр списка инструментов"
+          @update:model-value="$emit('update:assetFilter', $event)"
+        />
+
+        <UiDropdown
+          :model-value="strategyMode"
+          :items="strategyOptions"
+          title="Режим сигналов стратегии"
+          @update:model-value="$emit('update:strategyMode', $event)"
+        >
+          <template #trigger-prefix>
+            <span class="w-1.5 h-1.5 rounded-full bg-[#336FEE]"></span>
+          </template>
+        </UiDropdown>
+      </div>
+
+      <!-- Group 3: CCI & STCH Toggles -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <UiToggleChip
+          :model-value="useCCI"
+          label="CCI"
+          :title="strategyMode === 'rsi_nw' ? 'Включить/выключить индекс товарного канала' : 'Фильтрация по CCI (совместно со стратегией)'"
+          @update:model-value="$emit('update:useCCI', $event)"
+        />
+
+        <UiToggleChip
+          :model-value="useSTCH"
+          label="STCH"
+          :title="strategyMode === 'rsi_nw' ? 'Включить/выключить стохастический осциллятор' : 'Фильтрация по STCH (совместно со стратегией)'"
+          @update:model-value="$emit('update:useSTCH', $event)"
+        />
+      </div>
     </div>
 
-    <!-- Group 2: Assets & Strategy dropdowns -->
-    <div class="flex items-center gap-1.5 shrink-0">
-      <UiDropdown
-        :model-value="assetFilter"
-        :items="assetOptions"
-        title="Фильтр списка инструментов"
-        @update:model-value="$emit('update:assetFilter', $event)"
-      />
-
-      <UiDropdown
-        :model-value="strategyMode"
-        :items="strategyOptions"
-        title="Режим сигналов стратегии"
-        @update:model-value="$emit('update:strategyMode', $event)"
-      >
-        <template #trigger-prefix>
-          <span class="w-1.5 h-1.5 rounded-full bg-[#336FEE]"></span>
-        </template>
-      </UiDropdown>
-    </div>
-
-    <!-- Group 3: CCI & STCH Toggles -->
-    <div class="flex items-center gap-1.5 shrink-0">
-      <UiToggleChip
-        :model-value="useCCI"
-        label="CCI"
-        :title="strategyMode === 'rsi_nw' ? 'Включить/выключить индекс товарного канала' : 'Фильтрация по CCI (совместно со стратегией)'"
-        @update:model-value="$emit('update:useCCI', $event)"
-      />
-
-      <UiToggleChip
-        :model-value="useSTCH"
-        label="STCH"
-        :title="strategyMode === 'rsi_nw' ? 'Включить/выключить стохастический осциллятор' : 'Фильтрация по STCH (совместно со стратегией)'"
-        @update:model-value="$emit('update:useSTCH', $event)"
-      />
-    </div>
-
-    <!-- Group 4: Server Connection Status -->
-    <div class="flex items-center shrink-0 ml-auto sm:ml-0">
+    <!-- Right: Server Connection Status (Pinned to top-right corner) -->
+    <div class="flex items-center shrink-0 ml-auto pt-0.5">
       <ServerStatus
         :online="serverOnline"
         :label="serverPingLabel"
