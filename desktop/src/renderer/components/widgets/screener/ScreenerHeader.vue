@@ -199,8 +199,9 @@
           class="absolute right-0 top-full mt-1.5 z-[100] bg-[#161B22] border border-[rgba(140,167,190,0.25)] rounded-lg shadow-2xl p-2.5 min-w-[260px] space-y-2 select-none"
         >
           <!-- 1. Timeframes -->
-          <div class="flex items-center justify-center">
+          <div class="w-full">
             <TimeframeGroup
+              class="w-full"
               :model-value="timeframe"
               @update:model-value="$emit('update:timeframe', $event)"
             />
@@ -239,16 +240,18 @@
           <div class="h-[1px] bg-[rgba(140,167,190,0.14)] w-full"></div>
 
           <!-- 4. CCI & STCH Toggles -->
-          <div class="flex items-center gap-2 justify-center">
+          <div class="grid grid-cols-2 gap-2 w-full">
             <UiToggleChip
               :model-value="useCCI"
               label="CCI"
+              class="w-full justify-center"
               :title="strategyMode === 'rsi_nw' ? 'Включить/выключить индекс товарного канала' : 'Фильтрация по CCI'"
               @update:model-value="$emit('update:useCCI', $event)"
             />
             <UiToggleChip
               :model-value="useSTCH"
               label="STCH"
+              class="w-full justify-center"
               :title="strategyMode === 'rsi_nw' ? 'Включить/выключить стохастический осциллятор' : 'Фильтрация по STCH'"
               @update:model-value="$emit('update:useSTCH', $event)"
             />

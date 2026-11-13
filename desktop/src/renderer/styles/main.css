@@ -138,6 +138,22 @@
     min-width: 100%;
 }
 
+.tf-group.w-full {
+    display: flex;
+    width: 100%;
+}
+.tf-group.w-full .tf-btn {
+    flex: 1;
+    text-align: center;
+    padding: 0 4px;
+}
+
+.ind-toggle-chip.w-full {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+}
+
 * {
     box-sizing: border-box;
 }
