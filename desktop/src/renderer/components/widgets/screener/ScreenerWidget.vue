@@ -36,6 +36,7 @@
       :row-flash-map="rowFlashMap"
       :sort-by="sortBy"
       :sort-desc="sortDesc"
+      :strategy-mode="strategyMode"
       :use-c-c-i="useCCI"
       :use-s-t-c-h="useSTCH"
       :volume-days-x="settings.volumeDaysX"

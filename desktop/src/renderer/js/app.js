@@ -385,21 +385,42 @@ function renderTable(flashedTicker = null, flashDir = 0) {
                     </div>
                 </td>
 
-                <td class="text-center font-mono">
-                    <span class="sig-pill ${rsiClass} min-w-[48px]">${row.rsi.toFixed(1)}</span>
-                </td>
+                <!-- Dynamic Indicator Tabs based on strategy participation -->
+                ${(() => {
+                    const mode = state.strategyMode;
+                    const actRsi = mode === 'rsi_nw' || mode === 'rsi_only' || mode === 'rsi_or_nw';
+                    const actNw = mode === 'rsi_nw' || mode === 'nw_only' || mode === 'rsi_or_nw';
+                    const actCci = mode !== 'rsi_nw' && state.useCCI;
+                    const actStch = mode !== 'rsi_nw' && state.useSTCH;
 
-                <td class="text-center">
-                    <span class="sig-pill ${nwClass}">${nwLabel}</span>
-                </td>
+                    const rsiTextClass = row.rsiSignal > 0 ? 'sig-text-buy' : (row.rsiSignal < 0 ? 'sig-text-sell' : 'sig-text-neutral');
+                    const nwTextClass = row.nwSignal > 0 ? 'sig-text-buy' : (row.nwSignal < 0 ? 'sig-text-sell' : 'sig-text-neutral');
+                    const cciTextClass = row.cciSignal > 0 ? 'sig-text-buy' : (row.cciSignal < 0 ? 'sig-text-sell' : 'sig-text-neutral');
+                    const stchTextClass = row.stchSignal > 0 ? 'sig-text-buy' : (row.stchSignal < 0 ? 'sig-text-sell' : 'sig-text-neutral');
 
-                <td class="text-center font-mono ">
-                    <span class="sig-pill ${cciClass} min-w-[50px]">${cciFormatted}</span>
-                </td>
+                    const rsiHtml = actRsi
+                        ? `<span class="sig-pill ${rsiClass} min-w-[48px]">${row.rsi.toFixed(1)}</span>`
+                        : `<span class="inline-block text-[11px] leading-[15px] font-semibold ${rsiTextClass} min-w-[48px]">${row.rsi.toFixed(1)}</span>`;
 
-                <td class="text-center font-mono ">
-                    <span class="sig-pill ${stchClass} min-w-[48px]">${row.stch.toFixed(1)}</span>
-                </td>
+                    const nwHtml = actNw
+                        ? `<span class="sig-pill ${nwClass}">${nwLabel}</span>`
+                        : `<span class="inline-block text-[11px] leading-[15px] font-semibold ${nwTextClass}">${nwLabel}</span>`;
+
+                    const cciHtml = actCci
+                        ? `<span class="sig-pill ${cciClass} min-w-[50px]">${cciFormatted}</span>`
+                        : `<span class="inline-block text-[11px] leading-[15px] font-semibold ${cciTextClass} min-w-[50px]">${cciFormatted}</span>`;
+
+                    const stchHtml = actStch
+                        ? `<span class="sig-pill ${stchClass} min-w-[48px]">${row.stch.toFixed(1)}</span>`
+                        : `<span class="inline-block text-[11px] leading-[15px] font-semibold ${stchTextClass} min-w-[48px]">${row.stch.toFixed(1)}</span>`;
+
+                    return `
+                        <td class="text-center font-mono">${rsiHtml}</td>
+                        <td class="text-center">${nwHtml}</td>
+                        <td class="text-center font-mono">${cciHtml}</td>
+                        <td class="text-center font-mono">${stchHtml}</td>
+                    `;
+                })()}
 
                 <td class="text-right">
                     ${statusBadgeHtml}

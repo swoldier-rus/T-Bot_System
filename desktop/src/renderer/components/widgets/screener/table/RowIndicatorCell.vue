@@ -1,6 +1,17 @@
 <template>
   <td class="text-center" :class="[isMono ? 'font-mono' : '', muted ? 'col-muted' : '']">
-    <span class="sig-pill" :class="[pillClass, minWidthClass]">
+    <span
+      v-if="participates"
+      class="sig-pill"
+      :class="[pillClass, minWidthClass]"
+    >
+      {{ displayValue }}
+    </span>
+    <span
+      v-else
+      class="inline-block text-[11px] leading-[15px] font-semibold text-center"
+      :class="[textSignalClass, minWidthClass]"
+    >
       {{ displayValue }}
     </span>
   </td>
@@ -22,6 +33,10 @@ const props = defineProps({
     type: String,
     default: 'number', // 'rsi' | 'nw' | 'cci' | 'stch' | 'number'
   },
+  participates: {
+    type: Boolean,
+    default: true,
+  },
   muted: {
     type: Boolean,
     default: false,
@@ -38,6 +53,12 @@ const pillClass = computed(() => {
   if (props.signal > 0) return 'sig-buy';
   if (props.signal < 0) return 'sig-sell';
   return 'sig-neutral';
+});
+
+const textSignalClass = computed(() => {
+  if (props.signal > 0) return 'sig-text-buy';
+  if (props.signal < 0) return 'sig-text-sell';
+  return 'sig-text-neutral';
 });
 
 const minWidthClass = computed(() => {

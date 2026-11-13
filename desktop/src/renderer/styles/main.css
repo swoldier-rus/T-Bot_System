@@ -531,6 +531,17 @@ html, body {
     border-color: transparent;
 }
 
+/* Signal Plain Text (Non-participating indicators) */
+.sig-text-buy {
+    color: var(--signal-buy-text);
+}
+.sig-text-sell {
+    color: var(--signal-sell-text);
+}
+.sig-text-neutral {
+    color: var(--signal-neutral-text);
+}
+
 .col-muted {
     opacity: 0.34;
     filter: grayscale(85%);

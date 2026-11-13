@@ -55,6 +55,7 @@
             :value="row.rsi"
             :signal="row.rsiSignal"
             type="rsi"
+            :participates="activeIndicators.rsi"
           />
 
           <!-- 5. NW -->
@@ -62,6 +63,7 @@
             :value="row.nw"
             :signal="row.nwSignal"
             type="nw"
+            :participates="activeIndicators.nw"
           />
 
           <!-- 6. CCI -->
@@ -69,6 +71,7 @@
             :value="row.cci"
             :signal="row.cciSignal"
             type="cci"
+            :participates="activeIndicators.cci"
           />
 
           <!-- 7. STCH -->
@@ -76,6 +79,7 @@
             :value="row.stch"
             :signal="row.stchSignal"
             type="stch"
+            :participates="activeIndicators.stch"
           />
 
           <!-- 8. Status -->
@@ -90,6 +94,7 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import TableHeader from './TableHeader.vue';
 import RowInstrument from './RowInstrument.vue';
 import RowPrice from './RowPrice.vue';
@@ -97,7 +102,7 @@ import RowVolume from './RowVolume.vue';
 import RowIndicatorCell from './RowIndicatorCell.vue';
 import RowStatus from './RowStatus.vue';
 
-defineProps({
+const props = defineProps({
   rows: {
     type: Array,
     default: () => [],
@@ -113,6 +118,10 @@ defineProps({
   sortDesc: {
     type: Boolean,
     default: true,
+  },
+  strategyMode: {
+    type: String,
+    default: 'rsi_nw',
   },
   useCCI: {
     type: Boolean,
@@ -137,4 +146,14 @@ defineProps({
 });
 
 defineEmits(['sort', 'resetFilters', 'toggleFavorite']);
+
+const activeIndicators = computed(() => {
+  const mode = props.strategyMode;
+  return {
+    rsi: mode === 'rsi_nw' || mode === 'rsi_only' || mode === 'rsi_or_nw',
+    nw: mode === 'rsi_nw' || mode === 'nw_only' || mode === 'rsi_or_nw',
+    cci: mode !== 'rsi_nw' && props.useCCI,
+    stch: mode !== 'rsi_nw' && props.useSTCH,
+  };
+});
 </script>
