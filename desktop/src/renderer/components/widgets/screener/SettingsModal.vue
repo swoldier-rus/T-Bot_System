@@ -17,6 +17,13 @@
         </div>
         <div
           class="settings-vert-tab"
+          :class="{ active: activeTab === 'table' }"
+          @click="activeTab = 'table'"
+        >
+          <span>Настройки таблицы</span>
+        </div>
+        <div
+          class="settings-vert-tab"
           :class="{ active: activeTab === 'appearance' }"
           @click="activeTab = 'appearance'"
         >
@@ -310,7 +317,85 @@
           </div>
         </div>
 
-        <!-- Tab 2: Appearance -->
+        <!-- Tab 2: Table Columns Reorder & Visibility -->
+        <div v-show="activeTab === 'table'" class="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+          <div class="text-[11px] text-[#8CA7BE] mb-2 px-0.5">
+            Перетаскивайте строки для настройки порядка столбцов в таблице. Используйте чекбоксы для скрытия или отображения столбцов.
+          </div>
+
+          <div class="space-y-1.5 select-none">
+            <div
+              v-for="(col, idx) in localTableColumns"
+              :key="col.id"
+              draggable="true"
+              @dragstart="onDragStart(idx, $event)"
+              @dragover.prevent="onDragOver(idx, $event)"
+              @dragleave="onDragLeave(idx)"
+              @drop="onDrop(idx, $event)"
+              @dragend="onDragEnd"
+              class="flex items-center gap-3 px-3 py-2.5 rounded-lg border transition cursor-default bg-[#161B22] hover:bg-[#1C2128]"
+              :class="[
+                dragOverIndex === idx ? 'border-[#336FEE] bg-[#1E2633]' : 'border-[rgba(140,167,190,0.14)]',
+                dragIndex === idx ? 'opacity-40' : 'opacity-100'
+              ]"
+            >
+              <!-- Drag handle -->
+              <div
+                class="cursor-grab active:cursor-grabbing text-[#708BA4] hover:text-white transition p-0.5"
+                title="Потяните для изменения порядка"
+              >
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <circle cx="9" cy="6" r="1.5" />
+                  <circle cx="15" cy="6" r="1.5" />
+                  <circle cx="9" cy="12" r="1.5" />
+                  <circle cx="15" cy="12" r="1.5" />
+                  <circle cx="9" cy="18" r="1.5" />
+                  <circle cx="15" cy="18" r="1.5" />
+                </svg>
+              </div>
+
+              <!-- Checkbox + Label -->
+              <label class="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+                <input
+                  type="checkbox"
+                  v-model="col.visible"
+                  class="sr-only"
+                />
+                <div
+                  class="w-4 h-4 rounded flex items-center justify-center transition border"
+                  :class="col.visible ? 'bg-[#336FEE] border-[#428BF9] text-white' : 'bg-[#12151B] border-[rgba(140,167,190,0.3)] text-transparent'"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <span class="text-xs font-medium text-white truncate">{{ col.label }}</span>
+              </label>
+
+              <!-- Help/Tooltip icon -->
+              <div class="relative group/tip shrink-0">
+                <button
+                  type="button"
+                  class="w-5 h-5 rounded-full flex items-center justify-center text-[#708BA4] hover:text-white hover:bg-[rgba(140,167,190,0.15)] transition cursor-help border-none bg-transparent"
+                  :title="col.hint"
+                >
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="9" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" stroke-width="2.5" stroke-linecap="round" />
+                  </svg>
+                </button>
+                <div
+                  class="absolute right-0 bottom-full mb-1.5 hidden group-hover/tip:block z-50 w-64 p-2 text-[11px] leading-tight text-white bg-[#1C2128] border border-[rgba(140,167,190,0.25)] rounded shadow-xl pointer-events-none"
+                >
+                  {{ col.hint }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Appearance -->
         <div v-show="activeTab === 'appearance'" class="space-y-3 text-xs max-h-[420px] overflow-y-auto pr-1">
           <div class="flex items-center justify-between gap-2 pb-2 border-b border-[rgba(140,167,190,0.12)]">
             <div>
@@ -394,6 +479,7 @@
 <script setup>
 import { ref, reactive, watch } from 'vue';
 import UiModal from '@/components/ui/UiModal.vue';
+import { DEFAULT_TABLE_COLUMNS } from '@/composables/useSettings.js';
 
 const props = defineProps({
   isOpen: {
@@ -433,6 +519,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  tableColumns: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const emit = defineEmits([
@@ -463,6 +553,59 @@ const localDaysX = ref(props.volumeDaysX);
 const localThresholds = reactive({ ...props.thresholds });
 const localIndicatorParams = reactive({ ...props.indicatorParams });
 
+const localTableColumns = reactive([]);
+
+function syncLocalColumns(cols) {
+  localTableColumns.length = 0;
+  if (Array.isArray(cols) && cols.length > 0) {
+    cols.forEach(c => localTableColumns.push({ ...c }));
+  } else {
+    DEFAULT_TABLE_COLUMNS.forEach(c => localTableColumns.push({ ...c }));
+  }
+}
+
+watch(() => props.tableColumns, (cols) => {
+  syncLocalColumns(cols);
+}, { immediate: true, deep: true });
+
+const dragIndex = ref(null);
+const dragOverIndex = ref(null);
+
+function onDragStart(index, event) {
+  dragIndex.value = index;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', String(index));
+}
+
+function onDragOver(index, event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  dragOverIndex.value = index;
+}
+
+function onDragLeave(index) {
+  if (dragOverIndex.value === index) {
+    dragOverIndex.value = null;
+  }
+}
+
+function onDrop(index, event) {
+  event.preventDefault();
+  const fromIndex = dragIndex.value;
+  const toIndex = index;
+  if (fromIndex !== null && fromIndex !== toIndex && fromIndex >= 0 && toIndex >= 0) {
+    const item = localTableColumns.splice(fromIndex, 1)[0];
+    localTableColumns.splice(toIndex, 0, item);
+  }
+  dragIndex.value = null;
+  dragOverIndex.value = null;
+}
+
+function onDragEnd() {
+  dragIndex.value = null;
+  dragOverIndex.value = null;
+}
+
 watch(() => props.volumeDaysX, (v) => {
   localDaysX.value = v;
 });
@@ -485,6 +628,7 @@ function saveAndClose() {
     volumeDaysX: localDaysX.value,
     thresholds: { ...localThresholds },
     indicatorParams: { ...localIndicatorParams },
+    tableColumns: localTableColumns.map(c => ({ ...c })),
   });
   emit('close');
 }

@@ -2,6 +2,45 @@ import { ref, reactive, watch } from 'vue';
 
 const STORAGE_KEY = 'moex_screener_settings';
 
+export const DEFAULT_TABLE_COLUMNS = [
+  { id: 'price', label: 'Цена/Изм', visible: true, hint: 'Текущая цена последней сделки и процентное изменение цены за торговую сессию.' },
+  { id: 'volume', label: 'Объем', visible: true, hint: 'Дневной торговый объем в млн руб. и процентное отклонение от среднего объема за выбранный период.' },
+  { id: 'rsi', label: 'RSI', visible: true, hint: 'Индекс относительной силы (Relative Strength Index). Сигналы перекупленности и перепроданности.' },
+  { id: 'nw', label: 'NWE', visible: true, hint: 'Конверт Надарая-Ватсона (Nadaraya-Watson Envelope) с фильтрацией тренда и отскоков.' },
+  { id: 'cci', label: 'CCI', visible: true, hint: 'Индекс товарного канала (Commodity Channel Index). Определение циклических экстремумов.' },
+  { id: 'stch', label: 'Stoch', visible: true, hint: 'Стохастический осциллятор (%K / %D). Опережающие сигналы разворота импульса.' },
+  { id: 'status', label: 'Статус', visible: true, hint: 'Итоговый сигнал стратегии (BUY / SELL / NEUTRAL) с перечислением подтверждающих индикаторов.' },
+];
+
+function loadColumns(savedColumns) {
+  if (!Array.isArray(savedColumns) || savedColumns.length === 0) {
+    return DEFAULT_TABLE_COLUMNS.map(c => ({ ...c }));
+  }
+  const defaultMap = new Map(DEFAULT_TABLE_COLUMNS.map(c => [c.id, c]));
+  const result = [];
+  const seenIds = new Set();
+
+  for (const col of savedColumns) {
+    if (col && col.id && defaultMap.has(col.id)) {
+      const def = defaultMap.get(col.id);
+      result.push({
+        id: col.id,
+        label: def.label,
+        hint: def.hint,
+        visible: typeof col.visible === 'boolean' ? col.visible : true,
+      });
+      seenIds.add(col.id);
+    }
+  }
+
+  for (const def of DEFAULT_TABLE_COLUMNS) {
+    if (!seenIds.has(def.id)) {
+      result.push({ ...def });
+    }
+  }
+  return result;
+}
+
 const DEFAULT_SETTINGS = {
   volumeDaysX: 20,
   thresholds: {
@@ -26,6 +65,7 @@ const DEFAULT_SETTINGS = {
   condensed: false,
   contrast: false,
   soundAlerts: false,
+  tableColumns: DEFAULT_TABLE_COLUMNS.map(c => ({ ...c })),
 };
 
 function loadSettings() {
@@ -38,6 +78,7 @@ function loadSettings() {
         ...parsed,
         thresholds: { ...DEFAULT_SETTINGS.thresholds, ...(parsed.thresholds || {}) },
         indicatorParams: { ...DEFAULT_SETTINGS.indicatorParams, ...(parsed.indicatorParams || {}) },
+        tableColumns: loadColumns(parsed.tableColumns),
       };
     }
   } catch (e) {
@@ -47,6 +88,7 @@ function loadSettings() {
     ...DEFAULT_SETTINGS,
     thresholds: { ...DEFAULT_SETTINGS.thresholds },
     indicatorParams: { ...DEFAULT_SETTINGS.indicatorParams },
+    tableColumns: DEFAULT_TABLE_COLUMNS.map(c => ({ ...c })),
   };
 }
 
@@ -161,6 +203,7 @@ export function useSettings() {
     settings.condensed = DEFAULT_SETTINGS.condensed;
     settings.contrast = DEFAULT_SETTINGS.contrast;
     settings.soundAlerts = DEFAULT_SETTINGS.soundAlerts;
+    settings.tableColumns = DEFAULT_TABLE_COLUMNS.map(c => ({ ...c }));
     persist();
   }
 

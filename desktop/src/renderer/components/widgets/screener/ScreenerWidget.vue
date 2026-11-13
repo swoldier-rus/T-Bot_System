@@ -40,6 +40,7 @@
       :use-c-c-i="useCCI"
       :use-s-t-c-h="useSTCH"
       :volume-days-x="settings.volumeDaysX"
+      :columns="settings.tableColumns"
       :edit-favorites-mode="editFavoritesMode"
       :is-favorite="isFavorite"
       @sort="setSortColumn"
@@ -62,6 +63,7 @@
       :volume-days-x="settings.volumeDaysX"
       :thresholds="settings.thresholds"
       :indicator-params="settings.indicatorParams"
+      :table-columns="settings.tableColumns"
       :theme="settings.theme"
       :condensed="settings.condensed"
       :contrast="settings.contrast"
@@ -138,6 +140,7 @@ function handleSaveSettings(newSettings) {
   if (typeof newSettings.volumeDaysX === 'number') settings.volumeDaysX = newSettings.volumeDaysX;
   if (newSettings.thresholds) settings.thresholds = { ...newSettings.thresholds };
   if (newSettings.indicatorParams) settings.indicatorParams = { ...newSettings.indicatorParams };
+  if (Array.isArray(newSettings.tableColumns)) settings.tableColumns = newSettings.tableColumns;
   persist();
   isSettingsOpen.value = false;
 }

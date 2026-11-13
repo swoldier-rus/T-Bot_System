@@ -7,12 +7,13 @@
         :use-c-c-i="useCCI"
         :use-s-t-c-h="useSTCH"
         :volume-days-x="volumeDaysX"
+        :columns="columns"
         @sort="$emit('sort', $event)"
       />
 
       <tbody class="tabular-nums">
         <tr v-if="rows.length === 0">
-          <td colspan="8" class="text-center py-8 text-xs" style="color: var(--text-secondary);">
+          <td :colspan="1 + visibleColumns.length" class="text-center py-8 text-xs" style="color: var(--text-secondary);">
             По выбранным фильтрам инструментов не найдено.
             <button
               type="button"
@@ -29,7 +30,7 @@
           :key="row.ticker"
           :class="rowFlashMap[row.ticker] || ''"
         >
-          <!-- 1. Instrument -->
+          <!-- 1. Instrument (Always Fixed First) -->
           <RowInstrument
             :row="row"
             :is-favorite="isFavorite(row.ticker)"
@@ -37,56 +38,59 @@
             @toggle-favorite="$emit('toggleFavorite', $event)"
           />
 
-          <!-- 2. Price / Change -->
-          <RowPrice
-            :price="row.price"
-            :change="row.change"
-          />
+          <!-- 2. Dynamic Reorderable Columns -->
+          <template v-for="col in visibleColumns" :key="col.id">
+            <RowPrice
+              v-if="col.id === 'price'"
+              :price="row.price"
+              :change="row.change"
+            />
 
-          <!-- 3. Volume -->
-          <RowVolume
-            :volume-diff="row.volumeDiff"
-            :vol-rub-mln="row.volRubMln"
-            :volume-days-x="volumeDaysX"
-          />
+            <RowVolume
+              v-else-if="col.id === 'volume'"
+              :volume-diff="row.volumeDiff"
+              :vol-rub-mln="row.volRubMln"
+              :volume-days-x="volumeDaysX"
+            />
 
-          <!-- 4. RSI -->
-          <RowIndicatorCell
-            :value="row.rsi"
-            :signal="row.rsiSignal"
-            type="rsi"
-            :participates="activeIndicators.rsi"
-          />
+            <RowIndicatorCell
+              v-else-if="col.id === 'rsi'"
+              :value="row.rsi"
+              :signal="row.rsiSignal"
+              type="rsi"
+              :participates="activeIndicators.rsi"
+            />
 
-          <!-- 5. NW -->
-          <RowIndicatorCell
-            :value="row.nw"
-            :signal="row.nwSignal"
-            type="nw"
-            :participates="activeIndicators.nw"
-          />
+            <RowIndicatorCell
+              v-else-if="col.id === 'nw'"
+              :value="row.nw"
+              :signal="row.nwSignal"
+              type="nw"
+              :participates="activeIndicators.nw"
+            />
 
-          <!-- 6. CCI -->
-          <RowIndicatorCell
-            :value="row.cci"
-            :signal="row.cciSignal"
-            type="cci"
-            :participates="activeIndicators.cci"
-          />
+            <RowIndicatorCell
+              v-else-if="col.id === 'cci'"
+              :value="row.cci"
+              :signal="row.cciSignal"
+              type="cci"
+              :participates="activeIndicators.cci"
+            />
 
-          <!-- 7. STCH -->
-          <RowIndicatorCell
-            :value="row.stch"
-            :signal="row.stchSignal"
-            type="stch"
-            :participates="activeIndicators.stch"
-          />
+            <RowIndicatorCell
+              v-else-if="col.id === 'stch'"
+              :value="row.stch"
+              :signal="row.stchSignal"
+              type="stch"
+              :participates="activeIndicators.stch"
+            />
 
-          <!-- 8. Status -->
-          <RowStatus
-            :status="row.finalStatus"
-            :reasons-text="row.reasonsText"
-          />
+            <RowStatus
+              v-else-if="col.id === 'status'"
+              :status="row.finalStatus"
+              :reasons-text="row.reasonsText"
+            />
+          </template>
         </tr>
       </tbody>
     </table>
@@ -101,6 +105,7 @@ import RowPrice from './RowPrice.vue';
 import RowVolume from './RowVolume.vue';
 import RowIndicatorCell from './RowIndicatorCell.vue';
 import RowStatus from './RowStatus.vue';
+import { DEFAULT_TABLE_COLUMNS } from '@/composables/useSettings.js';
 
 const props = defineProps({
   rows: {
@@ -143,17 +148,57 @@ const props = defineProps({
     type: Function,
     required: true,
   },
+  columns: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 defineEmits(['sort', 'resetFilters', 'toggleFavorite']);
 
+const visibleColumns = computed(() => {
+  if (Array.isArray(props.columns) && props.columns.length > 0) {
+    return props.columns.filter(c => c.visible !== false);
+  }
+  return DEFAULT_TABLE_COLUMNS;
+});
+
 const activeIndicators = computed(() => {
   const mode = props.strategyMode;
+  if (mode === 'rsi_nw') {
+    return {
+      rsi: true,
+      nw: true,
+      cci: props.useCCI,
+      stch: props.useSTCH,
+    };
+  } else if (mode === 'rsi_only') {
+    return {
+      rsi: true,
+      nw: false,
+      cci: props.useCCI,
+      stch: props.useSTCH,
+    };
+  } else if (mode === 'nw_only') {
+    return {
+      rsi: false,
+      nw: true,
+      cci: props.useCCI,
+      stch: props.useSTCH,
+    };
+  } else if (mode === 'rsi_or_nw') {
+    return {
+      rsi: true,
+      nw: true,
+      cci: props.useCCI,
+      stch: props.useSTCH,
+    };
+  }
   return {
-    rsi: mode === 'rsi_nw' || mode === 'rsi_only' || mode === 'rsi_or_nw',
-    nw: mode === 'rsi_nw' || mode === 'nw_only' || mode === 'rsi_or_nw',
-    cci: mode !== 'rsi_nw' && props.useCCI,
-    stch: mode !== 'rsi_nw' && props.useSTCH,
+    rsi: true,
+    nw: true,
+    cci: props.useCCI,
+    stch: props.useSTCH,
   };
 });
 </script>
