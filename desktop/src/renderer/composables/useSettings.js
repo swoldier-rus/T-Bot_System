@@ -12,6 +12,16 @@ const DEFAULT_SETTINGS = {
     stchLow: 20,
     stchHigh: 80,
   },
+  indicatorParams: {
+    rsiPeriod: 14,
+    stochK: 14,
+    stochSmooth: 3,
+    stochD: 3,
+    nwBandwidth: 8.0,
+    nwMult: 3.0,
+    nwRepaint: true,
+    cciPeriod: 20,
+  },
   theme: 'night',
   condensed: false,
   contrast: false,
@@ -22,12 +32,22 @@ function loadSettings() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+      const parsed = JSON.parse(raw);
+      return {
+        ...DEFAULT_SETTINGS,
+        ...parsed,
+        thresholds: { ...DEFAULT_SETTINGS.thresholds, ...(parsed.thresholds || {}) },
+        indicatorParams: { ...DEFAULT_SETTINGS.indicatorParams, ...(parsed.indicatorParams || {}) },
+      };
     }
   } catch (e) {
     console.error('Error loading settings', e);
   }
-  return { ...DEFAULT_SETTINGS };
+  return {
+    ...DEFAULT_SETTINGS,
+    thresholds: { ...DEFAULT_SETTINGS.thresholds },
+    indicatorParams: { ...DEFAULT_SETTINGS.indicatorParams },
+  };
 }
 
 const settings = reactive(loadSettings());
@@ -51,12 +71,20 @@ async function syncFromBackend() {
       if (data && data.params) {
         const p = data.params;
         if (typeof p.rvolDays === 'number') settings.volumeDaysX = p.rvolDays;
+        if (typeof p.rsiPeriod === 'number') settings.indicatorParams.rsiPeriod = p.rsiPeriod;
         if (typeof p.rsiOversold === 'number') settings.thresholds.rsiLow = p.rsiOversold;
         if (typeof p.rsiOverbought === 'number') settings.thresholds.rsiHigh = p.rsiOverbought;
+        if (typeof p.stochK === 'number') settings.indicatorParams.stochK = p.stochK;
+        if (typeof p.stochSmooth === 'number') settings.indicatorParams.stochSmooth = p.stochSmooth;
+        if (typeof p.stochD === 'number') settings.indicatorParams.stochD = p.stochD;
         if (typeof p.stochOversold === 'number') settings.thresholds.stchLow = p.stochOversold;
         if (typeof p.stochOverbought === 'number') settings.thresholds.stchHigh = p.stochOverbought;
+        if (typeof p.cciPeriod === 'number') settings.indicatorParams.cciPeriod = p.cciPeriod;
         if (typeof p.cciOversold === 'number') settings.thresholds.cciLow = p.cciOversold;
         if (typeof p.cciOverbought === 'number') settings.thresholds.cciHigh = p.cciOverbought;
+        if (typeof p.nwBandwidth === 'number') settings.indicatorParams.nwBandwidth = p.nwBandwidth;
+        if (typeof p.nwMult === 'number') settings.indicatorParams.nwMult = p.nwMult;
+        if (typeof p.nwRepaint === 'boolean') settings.indicatorParams.nwRepaint = p.nwRepaint;
       }
     }
   } catch (e) {}
@@ -79,12 +107,20 @@ export function useSettings() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rvolDays: settings.volumeDaysX,
+          rsiPeriod: settings.indicatorParams.rsiPeriod,
           rsiOversold: settings.thresholds.rsiLow,
           rsiOverbought: settings.thresholds.rsiHigh,
+          stochK: settings.indicatorParams.stochK,
+          stochSmooth: settings.indicatorParams.stochSmooth,
+          stochD: settings.indicatorParams.stochD,
           stochOversold: settings.thresholds.stchLow,
           stochOverbought: settings.thresholds.stchHigh,
+          cciPeriod: settings.indicatorParams.cciPeriod,
           cciOversold: settings.thresholds.cciLow,
           cciOverbought: settings.thresholds.cciHigh,
+          nwBandwidth: settings.indicatorParams.nwBandwidth,
+          nwMult: settings.indicatorParams.nwMult,
+          nwRepaint: settings.indicatorParams.nwRepaint,
         })
       }).catch(() => {});
     } catch (e) {}
@@ -93,6 +129,7 @@ export function useSettings() {
   function resetDefaults() {
     settings.volumeDaysX = DEFAULT_SETTINGS.volumeDaysX;
     settings.thresholds = { ...DEFAULT_SETTINGS.thresholds };
+    settings.indicatorParams = { ...DEFAULT_SETTINGS.indicatorParams };
     settings.theme = DEFAULT_SETTINGS.theme;
     settings.condensed = DEFAULT_SETTINGS.condensed;
     settings.contrast = DEFAULT_SETTINGS.contrast;

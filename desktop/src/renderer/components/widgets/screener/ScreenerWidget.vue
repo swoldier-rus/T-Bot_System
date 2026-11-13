@@ -61,6 +61,7 @@
       :is-open="isSettingsOpen"
       :volume-days-x="settings.volumeDaysX"
       :thresholds="settings.thresholds"
+      :indicator-params="settings.indicatorParams"
       :theme="settings.theme"
       :condensed="settings.condensed"
       :contrast="settings.contrast"
@@ -134,8 +135,9 @@ const {
 } = useWebSocket();
 
 function handleSaveSettings(newSettings) {
-  settings.volumeDaysX = newSettings.volumeDaysX;
-  settings.thresholds = { ...newSettings.thresholds };
+  if (typeof newSettings.volumeDaysX === 'number') settings.volumeDaysX = newSettings.volumeDaysX;
+  if (newSettings.thresholds) settings.thresholds = { ...newSettings.thresholds };
+  if (newSettings.indicatorParams) settings.indicatorParams = { ...newSettings.indicatorParams };
   persist();
   isSettingsOpen.value = false;
 }
