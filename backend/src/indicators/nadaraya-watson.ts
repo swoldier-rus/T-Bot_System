@@ -94,16 +94,21 @@ export function nadarayaWatsonEnvelope(
     mae = (absDevSum / lookback) * mult;
   }
 
-  const mid = Number(out.toFixed(2));
-  const upper = Number((out + mae).toFixed(2));
-  const lower = Number((out - mae).toFixed(2));
+  // Exact unrounded envelope bands for signal determination
+  const rawUpper = out + mae;
+  const rawLower = out - mae;
 
   let signal: 'BUY' | 'SELL' | 'NEUTRAL' = 'NEUTRAL';
-  if (latestPrice <= lower) {
+  if (latestPrice <= rawLower) {
     signal = 'BUY';
-  } else if (latestPrice >= upper) {
+  } else if (latestPrice >= rawUpper) {
     signal = 'SELL';
   }
+
+  // 6 decimal places preserves full precision for low-priced MOEX stocks (e.g. FIXR 0.6228, VTBR 0.02456, TGKA 0.008450)
+  const mid = Number(out.toFixed(6));
+  const upper = Number(rawUpper.toFixed(6));
+  const lower = Number(rawLower.toFixed(6));
 
   return { mid, upper, lower, signal };
 }

@@ -27,9 +27,17 @@ const props = defineProps({
 
 const priceFormatted = computed(() => {
   const p = props.price;
-  return p >= 1000
-    ? p.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : p.toFixed(2);
+  if (!p && p !== 0) return '0.00';
+  if (p >= 1000) {
+    return p.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  if (p < 0.1) {
+    return p.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 5 });
+  }
+  if (p < 1) {
+    return p.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  }
+  return p.toFixed(2);
 });
 
 const changeSign = computed(() => (props.change > 0 ? '+' : ''));

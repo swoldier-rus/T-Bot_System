@@ -68,6 +68,27 @@ describe('Nadaraya-Watson Envelope Indicator', () => {
     expect(res.lower).toBeLessThan(res.mid);
     expect(['BUY', 'SELL', 'NEUTRAL']).toContain(res.signal);
   });
+
+  it('correctly calculates envelope and signals for low-priced stocks (< 1.0 and < 0.1) without rounding distortion', () => {
+    // FIXR-like price: ~0.6228, small envelope width ~0.005
+    const fixrPrices = Array.from({ length: 50 }, (_, i) => 0.6200 + Math.sin(i / 5) * 0.0040);
+    const resFixr = nadarayaWatsonEnvelope(fixrPrices, 8, 3, true);
+
+    expect(resFixr.mid).toBeCloseTo(0.6216, 3);
+    expect(resFixr.upper).toBeGreaterThan(resFixr.mid);
+    expect(resFixr.lower).toBeLessThan(resFixr.mid);
+    expect(resFixr.upper - resFixr.lower).toBeGreaterThan(0.005);
+    expect(resFixr.upper - resFixr.lower).toBeLessThan(0.015);
+
+    // Sub-0.1 price (e.g. VTBR/TGKA ~0.025)
+    const lowPrices = Array.from({ length: 50 }, () => 0.0250);
+    // Sharp drop to 0.0240
+    lowPrices.push(0.0240);
+    const resLow = nadarayaWatsonEnvelope(lowPrices, 8, 2, false);
+    expect(resLow.signal).toBe('BUY');
+    expect(resLow.lower).toBeGreaterThan(0.0240);
+    expect(resLow.lower.toString().split('.')[1]?.length).toBeGreaterThan(2);
+  });
 });
 
 describe('Commodity Channel Index (CCI)', () => {
