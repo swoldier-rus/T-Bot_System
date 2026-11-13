@@ -371,7 +371,7 @@ export class SharedState implements ISharedStateReader {
       params.rvolDays === this.defaultParams.rvolDays &&
       (params.nwBandwidth ?? 8) === (this.defaultParams.nwBandwidth ?? 8) &&
       (params.nwMult ?? 3) === (this.defaultParams.nwMult ?? 3) &&
-      (params.nwRepaint ?? false) === (this.defaultParams.nwRepaint ?? false) &&
+      (params.nwRepaint ?? true) === (this.defaultParams.nwRepaint ?? true) &&
       (params.cciPeriod ?? 20) === (this.defaultParams.cciPeriod ?? 20);
 
     if (isDefault) return base;
@@ -515,7 +515,7 @@ export class SharedState implements ISharedStateReader {
     stochD: number = 3,
     nwBandwidth: number = 8,
     nwMult: number = 3,
-    nwRepaint: boolean = false,
+    nwRepaint: boolean = true,
     cciPeriod: number = 20
   ): StockTfIndicators {
     const minNeeded = Math.max(rsiPeriod + 1, stochK);

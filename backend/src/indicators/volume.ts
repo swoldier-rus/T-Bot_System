@@ -38,14 +38,14 @@ export function vwap(
 
     if (cumulativeVol > 0) {
       const currentVwap = cumulativePv / cumulativeVol;
-      vwapSeries[i] = Number(currentVwap.toFixed(4));
+      vwapSeries[i] = currentVwap;
 
       // Standard deviation of VWAP: sqrt(max(0, (sum(pv^2)/v) - vwap^2))
       const variance = Math.max(0, cumulativePv2 / cumulativeVol - currentVwap * currentVwap);
       const stdevVwap = Math.sqrt(variance);
 
-      upper1Series[i] = Number((currentVwap + stdevVwap).toFixed(4));
-      lower1Series[i] = Number((currentVwap - stdevVwap).toFixed(4));
+      upper1Series[i] = currentVwap + stdevVwap;
+      lower1Series[i] = currentVwap - stdevVwap;
     }
   }
 

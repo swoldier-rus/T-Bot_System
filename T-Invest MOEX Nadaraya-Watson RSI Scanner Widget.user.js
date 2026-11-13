@@ -563,6 +563,16 @@
             }
 
             renderTable() {
+    function formatStockPrice(val) {
+        if (val === undefined || val === null || isNaN(val)) return '—';
+        const num = Number(val);
+        if (num < 0.01) return num.toFixed(6);
+        if (num < 0.1) return num.toFixed(5);
+        if (num < 1) return num.toFixed(4);
+        if (num < 10) return num.toFixed(3);
+        return num.toFixed(2);
+    }
+
                 if (!this.tbodyEl) return;
 
                 let items = this.stocks.map(stock => {
@@ -624,7 +634,7 @@
                 }
 
                 const rowsHtml = items.map(({ stock, conf }) => {
-                    const priceStr = stock.price !== null ? stock.price.toFixed(2) : '—';
+                    const priceStr = stock.price !== null ? formatStockPrice(stock.price) : '—';
                     const changeVal = stock.change || 0;
                     const changeSign = changeVal > 0 ? '+' : '';
                     const changeCls = changeVal > 0 ? 'text-green' : changeVal < 0 ? 'text-red' : 'text-gray';
@@ -644,12 +654,14 @@
                     if (tfData && tfData.nw) {
                         const { upper, lower, mid } = tfData.nw;
                         const p = stock.price || 0;
+                        const lowerStr = formatStockPrice(lower);
+                        const upperStr = formatStockPrice(upper);
                         if (p <= lower) {
-                            nwBadge = `<span class="badge badge-buy">Ниже L (${lower})</span>`;
+                            nwBadge = `<span class="badge badge-buy">Ниже L (${lowerStr})</span>`;
                         } else if (p >= upper) {
-                            nwBadge = `<span class="badge badge-sell">Выше U (${upper})</span>`;
+                            nwBadge = `<span class="badge badge-sell">Выше U (${upperStr})</span>`;
                         } else {
-                            nwBadge = `<span class="text-gray">${lower} .. ${upper}</span>`;
+                            nwBadge = `<span class="text-gray">${lowerStr} .. ${upperStr}</span>`;
                         }
                     }
 

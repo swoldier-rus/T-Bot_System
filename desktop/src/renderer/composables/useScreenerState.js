@@ -76,6 +76,7 @@ function applyTimeframe(item, tfLabel) {
   }
   if (d.nw && d.nw.signal) {
     item.nw = d.nw.signal;
+    item.nwBands = d.nw;
   }
 }
 

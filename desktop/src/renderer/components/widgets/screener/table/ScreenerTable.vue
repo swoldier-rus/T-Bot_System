@@ -65,6 +65,7 @@
               v-else-if="col.id === 'nw'"
               :value="row.nw"
               :signal="row.nwSignal"
+              :bands="row.nwBands"
               type="nw"
               :participates="activeIndicators.nw"
             />

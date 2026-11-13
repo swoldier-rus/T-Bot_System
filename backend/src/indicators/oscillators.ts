@@ -133,7 +133,7 @@ export function macd(
   const macdLine: number[] = new Array(prices.length).fill(NaN);
   for (let i = 0; i < prices.length; i++) {
     if (Number.isFinite(fastEma[i]) && Number.isFinite(slowEma[i])) {
-      macdLine[i] = Number((fastEma[i] - slowEma[i]).toFixed(4));
+      macdLine[i] = fastEma[i] - slowEma[i];
     }
   }
 
@@ -156,7 +156,7 @@ export function macd(
       const origIdx = validIndices[j];
       signalLine[origIdx] = rawSignal[j];
       if (Number.isFinite(rawSignal[j])) {
-        histogram[origIdx] = Number((macdLine[origIdx] - rawSignal[j]).toFixed(4));
+        histogram[origIdx] = macdLine[origIdx] - rawSignal[j];
       }
     }
   }

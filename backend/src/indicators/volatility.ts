@@ -22,7 +22,7 @@ export function trueRange(candles: OHLCV[]): number[] {
       Math.abs(high - prevClose),
       Math.abs(low - prevClose)
     );
-    result[i] = Number(tr.toFixed(4));
+    result[i] = tr;
   }
 
   return result;
@@ -58,8 +58,8 @@ export function bollingerBands(
 
   for (let i = 0; i < prices.length; i++) {
     if (Number.isFinite(basis[i]) && Number.isFinite(deviations[i])) {
-      upper[i] = Number((basis[i] + multiplier * deviations[i]).toFixed(4));
-      lower[i] = Number((basis[i] - multiplier * deviations[i]).toFixed(4));
+      upper[i] = basis[i] + multiplier * deviations[i];
+      lower[i] = basis[i] - multiplier * deviations[i];
     }
   }
 
@@ -144,7 +144,7 @@ export function supertrend(
       }
     }
 
-    supertrendSeries[i] = Number(currentSupertrend.toFixed(4));
+    supertrendSeries[i] = currentSupertrend;
     directions[i] = currentDirection;
 
     prevFinalUpper = finalUpper;
@@ -183,8 +183,8 @@ export function keltnerChannels(
 
   for (let i = 0; i < candles.length; i++) {
     if (Number.isFinite(basis[i]) && Number.isFinite(atrValues[i])) {
-      upper[i] = Number((basis[i] + multiplier * atrValues[i]).toFixed(4));
-      lower[i] = Number((basis[i] - multiplier * atrValues[i]).toFixed(4));
+      upper[i] = basis[i] + multiplier * atrValues[i];
+      lower[i] = basis[i] - multiplier * atrValues[i];
     }
   }
 

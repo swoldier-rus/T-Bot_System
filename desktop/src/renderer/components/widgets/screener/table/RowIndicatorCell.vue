@@ -1,5 +1,5 @@
 <template>
-  <td class="text-center" :class="[isMono ? 'font-mono' : '', muted ? 'col-muted' : '']">
+  <td class="text-center" :title="cellTooltip" :class="[isMono ? 'font-mono' : '', muted ? 'col-muted' : '']">
     <span
       v-if="participates"
       class="sig-pill"
@@ -44,6 +44,10 @@ const props = defineProps({
   minWidth: {
     type: String,
     default: '',
+  },
+  bands: {
+    type: Object,
+    default: null,
   },
 });
 

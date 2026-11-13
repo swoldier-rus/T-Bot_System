@@ -2031,7 +2031,7 @@ export function renderDashboardHtml(): string {
           <tr>
             <td style="font-weight:700; color:#fff;">\${item.ticker}</td>
             <td style="color:var(--text-muted); max-width:200px; overflow:hidden; text-overflow:ellipsis;">\${item.description || item.ticker}</td>
-            <td style="font-weight:600;">\${item.price ? item.price.toFixed(2) + ' ₽' : '—'}</td>
+            <td style="font-weight:600;">\${item.price ? formatStockPrice(item.price) + ' ₽' : '—'}</td>
             <td style="\${changeCls}; font-weight:600;">\${changeSign}\${change.toFixed(2)}%</td>
             <td style="color:var(--text-muted);">\${item.rvol ? item.rvol.toFixed(2) + 'x' : '1.0x'}</td>
             <td>\${rsiBadge}</td>
@@ -2066,6 +2066,16 @@ export function renderDashboardHtml(): string {
     nwSearch.addEventListener('input', () => renderNwTable());
     nwFilterCondition.addEventListener('change', () => renderNwTable());
 
+        function formatStockPrice(val) {
+      if (val === undefined || val === null || isNaN(val)) return '—';
+      const num = Number(val);
+      if (num < 0.01) return num.toFixed(6);
+      if (num < 0.1) return num.toFixed(5);
+      if (num < 1) return num.toFixed(4);
+      if (num < 10) return num.toFixed(3);
+      return num.toFixed(2);
+    }
+
     function renderNwTable() {
       if (!stockItemsSnapshot || stockItemsSnapshot.length === 0) {
         nwBody.innerHTML = '<tr><td colspan="12" style="text-align:center; color:var(--text-muted); padding:30px;">Загрузка данных инструментов MOEX...</td></tr>';
@@ -2091,13 +2101,13 @@ export function renderDashboardHtml(): string {
         let positionText = '<span style="color:var(--text-muted);">Внутри канала</span>';
 
         if (nw && price) {
-          if (price < nw.lower) {
+          if (price <= nw.lower) {
             positionText = '<span style="color:var(--green); font-weight:600;">Ниже нижней границы (OS)</span>';
             if (rsiVal !== null && rsiVal < 35) {
               confluenceSignal = 'STRONG BUY';
               strongBuyCount++;
             }
-          } else if (price > nw.upper) {
+          } else if (price >= nw.upper) {
             positionText = '<span style="color:var(--red); font-weight:600;">Выше верхней границы (OB)</span>';
             if (rsiVal !== null && rsiVal > 65) {
               confluenceSignal = 'STRONG SELL';
@@ -2161,10 +2171,10 @@ export function renderDashboardHtml(): string {
           <tr>
             <td style="font-weight:700; color:#fff;">\${item.ticker}</td>
             <td style="color:var(--text-muted); max-width:180px; overflow:hidden; text-overflow:ellipsis;">\${item.description || item.ticker}</td>
-            <td style="font-weight:600;">\${item.price ? item.price.toFixed(2) + ' ₽' : '—'}</td>
-            <td style="color:#81c784;">\${nw ? nw.lower.toFixed(2) : '—'}</td>
-            <td style="color:#82b1ff;">\${nw ? nw.mid.toFixed(2) : '—'}</td>
-            <td style="color:#e57373;">\${nw ? nw.upper.toFixed(2) : '—'}</td>
+            <td style="font-weight:600;">\${item.price ? formatStockPrice(item.price) + ' ₽' : '—'}</td>
+            <td style="color:#81c784;">\${nw ? formatStockPrice(nw.lower) : '—'}</td>
+            <td style="color:#82b1ff;">\${nw ? formatStockPrice(nw.mid) : '—'}</td>
+            <td style="color:#e57373;">\${nw ? formatStockPrice(nw.upper) : '—'}</td>
             <td>\${positionText}</td>
             <td style="font-weight:600;">\${rsiVal !== null ? rsiVal.toFixed(1) : '—'}</td>
             <td>\${stochText}</td>

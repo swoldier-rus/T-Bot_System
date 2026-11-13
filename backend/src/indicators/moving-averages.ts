@@ -14,7 +14,7 @@ export function sma(values: number[], period: number): number[] {
       sum -= values[i - period];
     }
     if (i >= period - 1) {
-      result[i] = Number((sum / period).toFixed(4));
+      result[i] = sum / period;
     }
   }
 
@@ -37,12 +37,12 @@ export function ema(values: number[], period: number): number[] {
     sum += values[i];
   }
   let prevEma = sum / period;
-  result[period - 1] = Number(prevEma.toFixed(4));
+  result[period - 1] = prevEma;
 
   for (let i = period; i < values.length; i++) {
     const current = values[i];
     const currentEma = current * multiplier + prevEma * (1 - multiplier);
-    result[i] = Number(currentEma.toFixed(4));
+    result[i] = currentEma;
     prevEma = currentEma;
   }
 
@@ -62,11 +62,11 @@ export function rma(values: number[], period: number): number[] {
     sum += values[i];
   }
   let prevRma = sum / period;
-  result[period - 1] = Number(prevRma.toFixed(4));
+  result[period - 1] = prevRma;
 
   for (let i = period; i < values.length; i++) {
     const currentRma = (prevRma * (period - 1) + values[i]) / period;
-    result[i] = Number(currentRma.toFixed(4));
+    result[i] = currentRma;
     prevRma = currentRma;
   }
 
@@ -88,7 +88,7 @@ export function wma(values: number[], period: number): number[] {
     for (let j = 0; j < period; j++) {
       weightedSum += values[i - period + 1 + j] * (j + 1);
     }
-    result[i] = Number((weightedSum / weightSum).toFixed(4));
+    result[i] = weightedSum / weightSum;
   }
 
   return result;
@@ -119,7 +119,7 @@ export function vwma(candles: OHLCV[], period: number): number[] {
     }
 
     if (i >= period - 1) {
-      result[i] = volSum === 0 ? candles[i].close : Number((pvSum / volSum).toFixed(4));
+      result[i] = volSum === 0 ? candles[i].close : (pvSum / volSum);
     }
   }
 
