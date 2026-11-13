@@ -1,46 +1,108 @@
 <template>
-  <div class="pro-widget-header" @dblclick="handleHeaderDblClick">
+  <div class="pro-widget-header select-none transition-all" @dblclick="handleHeaderDblClick">
     <!-- Left: Link group dot + Title + TF Badge + Paper counter -->
-    <div class="flex items-center gap-2.5 min-w-0 no-drag">
+    <div class="flex items-center gap-2 min-w-0 no-drag">
       <button
         type="button"
         @click="$emit('cycleColor')"
-        class="w-3.5 h-3.5 rounded-full ring-2 shrink-0 cursor-pointer border-none transition"
+        class="rounded-full ring-2 shrink-0 cursor-pointer border-none transition"
+        :class="condensed ? 'w-3 h-3' : 'w-3.5 h-3.5'"
         :style="{ backgroundColor: linkGroupColor, '--tw-ring-color': linkGroupColor + '4D' }"
         :title="linkGroupTooltip"
       ></button>
 
-      <span class="font-semibold text-[13px] tracking-tight truncate max-w-[130px] sm:max-w-none" style="color: var(--text-primary);">
-        RSI + Nadaraya-Watson
-      </span>
+      <!-- Title & Badges: Hidden in compact mode -->
+      <template v-if="!condensed">
+        <span class="font-semibold text-[13px] tracking-tight truncate max-w-[130px] sm:max-w-none" style="color: var(--text-primary);">
+          RSI + Nadaraya-Watson
+        </span>
 
-      <span class="px-1.5 py-0.5 rounded text-[11px] font-mono bg-[rgba(51,111,238,0.18)] text-[#62A1FF]">
-        {{ timeframe }}
-      </span>
+        <span class="px-1.5 py-0.5 rounded text-[11px] font-mono bg-[rgba(51,111,238,0.18)] text-[#62A1FF]">
+          {{ timeframe }}
+        </span>
 
-      <span
-        class="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-[rgba(112,139,164,0.14)]"
-        style="color: var(--text-secondary);"
-      >
-        Бумаг: <strong class="text-white tabular-nums">{{ totalCount }}</strong>
-      </span>
+        <span
+          class="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-[rgba(112,139,164,0.14)]"
+          style="color: var(--text-secondary);"
+        >
+          Бумаг: <strong class="text-white tabular-nums">{{ totalCount }}</strong>
+        </span>
+      </template>
     </div>
 
-    <!-- Right: Search + Edit Favs + Settings + Electron Window Controls -->
+    <!-- Right: Search + Edit Favs + Settings + Pin + 4-Dots (compact) + Window Controls -->
     <div class="flex items-center gap-1.5 no-drag">
-      <UiSearchInput
-        :model-value="searchQuery"
-        @update:model-value="$emit('update:searchQuery', $event)"
-      />
+      <!-- Search Input: Normal vs Compact Expanding Search -->
+      <template v-if="!condensed">
+        <UiSearchInput
+          :model-value="searchQuery"
+          @update:model-value="$emit('update:searchQuery', $event)"
+        />
+      </template>
+      <template v-else>
+        <!-- Expanding search in compact mode -->
+        <div class="relative flex items-center">
+          <div
+            v-if="isSearchOpen || (searchQuery && searchQuery.length > 0)"
+            class="relative flex items-center animate-fade-in"
+          >
+            <input
+              ref="compactSearchInputRef"
+              type="text"
+              :value="searchQuery"
+              @input="$emit('update:searchQuery', $event.target.value)"
+              @blur="handleSearchBlur"
+              @keydown.esc="closeSearch"
+              placeholder="Поиск..."
+              class="h-[22px] w-[110px] sm:w-[130px] pl-6 pr-5 rounded text-[11px] bg-[rgba(112,139,164,0.22)] focus:bg-[#21313F] focus:ring-1 focus:ring-[#428BF9] outline-none transition text-white border border-[rgba(140,167,190,0.25)]"
+            />
+            <svg
+              class="w-3 h-3 absolute left-1.5 pointer-events-none text-[#708BA4]"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+            >
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="M21 21l-4.35-4.35"></path>
+            </svg>
+            <button
+              v-if="searchQuery && searchQuery.length > 0"
+              type="button"
+              @mousedown.prevent
+              @click="clearSearch"
+              class="absolute right-1.5 text-[#8CA7BE] hover:text-white bg-transparent border-none cursor-pointer text-[10px] p-0 flex items-center justify-center w-3 h-3"
+              title="Очистить"
+            >
+              ✕
+            </button>
+          </div>
+          <button
+            v-else
+            type="button"
+            @click="openSearch"
+            class="w-[24px] h-[24px] rounded flex items-center justify-center bg-transparent hover:bg-[rgba(112,139,164,0.20)] text-[var(--text-secondary)] transition cursor-pointer border-none"
+            title="Поиск инструментов"
+          >
+            <svg class="w-3.5 h-3.5" style="color: var(--icon-primary);" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="M21 21l-4.35-4.35"></path>
+            </svg>
+          </button>
+        </div>
+      </template>
 
       <!-- Edit Favorites Mode Toggle (Icon only) -->
       <button
         type="button"
         @click="$emit('toggleEditFavorites')"
-        class="w-[26px] h-[26px] rounded flex items-center justify-center transition cursor-pointer border border-transparent"
-        :class="editFavoritesMode
-          ? '!bg-[#336FEE] !text-white !border-[#428BF9]'
-          : 'bg-transparent hover:bg-[rgba(112,139,164,0.20)] text-[var(--text-secondary)]'"
+        class="rounded flex items-center justify-center transition cursor-pointer border border-transparent"
+        :class="[
+          condensed ? 'w-[24px] h-[24px]' : 'w-[26px] h-[26px]',
+          editFavoritesMode
+            ? '!bg-[#336FEE] !text-white !border-[#428BF9]'
+            : 'bg-transparent hover:bg-[rgba(112,139,164,0.20)] text-[var(--text-secondary)]'
+        ]"
         :title="editFavoritesMode ? 'Готово (сохранить выбор избранных)' : 'Изменить избранные инструменты'"
       >
         <svg v-if="editFavoritesMode" class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
@@ -55,7 +117,8 @@
       <button
         type="button"
         @click="$emit('openSettings')"
-        class="w-[26px] h-[26px] rounded flex items-center justify-center bg-transparent hover:bg-[rgba(112,139,164,0.20)] transition cursor-pointer border-none"
+        class="rounded flex items-center justify-center bg-transparent hover:bg-[rgba(112,139,164,0.20)] transition cursor-pointer border-none"
+        :class="condensed ? 'w-[24px] h-[24px]' : 'w-[26px] h-[26px]'"
         style="color: var(--text-secondary);"
         title="Настройки"
       >
@@ -69,10 +132,13 @@
       <button
         type="button"
         @click="toggleAlwaysOnTop"
-        class="w-[26px] h-[26px] rounded flex items-center justify-center transition cursor-pointer border border-transparent"
-        :class="isAlwaysOnTop
-          ? '!bg-[#336FEE] !text-white !border-[#428BF9]'
-          : 'bg-transparent hover:bg-[rgba(112,139,164,0.20)] text-[var(--text-secondary)]'"
+        class="rounded flex items-center justify-center transition cursor-pointer border border-transparent"
+        :class="[
+          condensed ? 'w-[24px] h-[24px]' : 'w-[26px] h-[26px]',
+          isAlwaysOnTop
+            ? '!bg-[#336FEE] !text-white !border-[#428BF9]'
+            : 'bg-transparent hover:bg-[rgba(112,139,164,0.20)] text-[var(--text-secondary)]'
+        ]"
         :title="isAlwaysOnTop ? 'Открепить (поверх всех окон)' : 'Закрепить поверх всех окон'"
       >
         <svg
@@ -104,8 +170,107 @@
         </svg>
       </button>
 
+      <!-- Divider before 4-dots (compact mode only) -->
+      <div v-if="condensed" class="h-3.5 w-[1px] bg-[rgba(140,167,190,0.18)] mx-0.5"></div>
+
+      <!-- 4-dots Dropdown Menu Button (compact mode only) -->
+      <div v-if="condensed" class="relative" ref="compactMenuContainerRef">
+        <button
+          type="button"
+          @click="toggleCompactMenu"
+          class="w-[24px] h-[24px] rounded flex items-center justify-center transition cursor-pointer border border-transparent"
+          :class="isCompactMenuOpen
+            ? '!bg-[#336FEE] !text-white !border-[#428BF9]'
+            : 'bg-transparent hover:bg-[rgba(112,139,164,0.20)] text-[var(--text-secondary)]'"
+          title="Фильтры и статус сервера"
+        >
+          <!-- 4 dots in 2x2 grid SVG -->
+          <svg class="w-3.5 h-3.5" viewBox="0 0 16 16" fill="currentColor">
+            <circle cx="5" cy="5" r="1.75" />
+            <circle cx="11" cy="5" r="1.75" />
+            <circle cx="5" cy="11" r="1.75" />
+            <circle cx="11" cy="11" r="1.75" />
+          </svg>
+        </button>
+
+        <!-- Popover Menu duplicating toolbar -->
+        <div
+          v-if="isCompactMenuOpen"
+          class="absolute right-0 top-full mt-1.5 z-[100] bg-[#161B22] border border-[rgba(140,167,190,0.25)] rounded-lg shadow-2xl p-2.5 min-w-[260px] space-y-2 select-none"
+        >
+          <!-- 1. Timeframes -->
+          <div class="flex items-center justify-center">
+            <TimeframeGroup
+              :model-value="timeframe"
+              @update:model-value="$emit('update:timeframe', $event)"
+            />
+          </div>
+
+          <div class="h-[1px] bg-[rgba(140,167,190,0.14)] w-full"></div>
+
+          <!-- 2. Asset list dropdown -->
+          <div>
+            <UiDropdown
+              :model-value="assetFilter"
+              :items="assetOptions"
+              title="Фильтр списка инструментов"
+              class="w-full"
+              @update:model-value="$emit('update:assetFilter', $event)"
+            />
+          </div>
+
+          <div class="h-[1px] bg-[rgba(140,167,190,0.14)] w-full"></div>
+
+          <!-- 3. Strategy dropdown -->
+          <div>
+            <UiDropdown
+              :model-value="strategyMode"
+              :items="strategyOptions"
+              title="Режим сигналов стратегии"
+              class="w-full"
+              @update:model-value="$emit('update:strategyMode', $event)"
+            >
+              <template #trigger-prefix>
+                <span class="w-1.5 h-1.5 rounded-full bg-[#336FEE]"></span>
+              </template>
+            </UiDropdown>
+          </div>
+
+          <div class="h-[1px] bg-[rgba(140,167,190,0.14)] w-full"></div>
+
+          <!-- 4. CCI & STCH Toggles -->
+          <div class="flex items-center gap-2 justify-center">
+            <UiToggleChip
+              :model-value="useCCI"
+              label="CCI"
+              :title="strategyMode === 'rsi_nw' ? 'Включить/выключить индекс товарного канала' : 'Фильтрация по CCI'"
+              @update:model-value="$emit('update:useCCI', $event)"
+            />
+            <UiToggleChip
+              :model-value="useSTCH"
+              label="STCH"
+              :title="strategyMode === 'rsi_nw' ? 'Включить/выключить стохастический осциллятор' : 'Фильтрация по STCH'"
+              @update:model-value="$emit('update:useSTCH', $event)"
+            />
+          </div>
+
+          <div class="h-[1px] bg-[rgba(140,167,190,0.14)] w-full"></div>
+
+          <!-- 5. Server Connection Status -->
+          <div class="flex items-center justify-between px-1 pt-0.5">
+            <span class="text-[11px] text-[var(--text-secondary)]">Сервер:</span>
+            <ServerStatus
+              :online="serverOnline"
+              :label="serverPingLabel"
+              :show-label-always="true"
+              @toggle="$emit('toggleServer')"
+            />
+          </div>
+        </div>
+      </div>
+
       <!-- Divider -->
-      <div class="h-4 w-[1px] bg-[rgba(140,167,190,0.18)] mx-0.5"></div>
+      <div class="h-3.5 w-[1px] bg-[rgba(140,167,190,0.18)] mx-0.5"></div>
 
       <!-- Electron window buttons -->
       <div class="flex items-center gap-0.5">
@@ -140,10 +305,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import UiSearchInput from '@/components/ui/UiSearchInput.vue';
+import TimeframeGroup from '@/components/common/TimeframeGroup.vue';
+import UiDropdown from '@/components/ui/UiDropdown.vue';
+import UiToggleChip from '@/components/ui/UiToggleChip.vue';
+import ServerStatus from '@/components/common/ServerStatus.vue';
 
-defineProps({
+const props = defineProps({
   timeframe: {
     type: String,
     default: '15м',
@@ -168,18 +337,115 @@ defineProps({
     type: String,
     default: 'Фильтр сигналов (клик для смены)',
   },
+  condensed: {
+    type: Boolean,
+    default: false,
+  },
+  assetFilter: {
+    type: String,
+    default: 'all',
+  },
+  strategyMode: {
+    type: String,
+    default: 'rsi_nw',
+  },
+  useCCI: {
+    type: Boolean,
+    default: true,
+  },
+  useSTCH: {
+    type: Boolean,
+    default: true,
+  },
+  serverOnline: {
+    type: Boolean,
+    default: true,
+  },
+  serverPingLabel: {
+    type: String,
+    default: 'MOEX · 14 мс',
+  },
 });
 
-defineEmits([
+const emit = defineEmits([
   'cycleColor',
   'update:searchQuery',
   'toggleEditFavorites',
   'openSettings',
+  'update:timeframe',
+  'update:assetFilter',
+  'update:strategyMode',
+  'update:useCCI',
+  'update:useSTCH',
+  'toggleServer',
 ]);
+
+const assetOptions = [
+  { value: 'all', label: 'Все акции', badge: 'MOEX', badgeClass: 'opacity-75' },
+  { value: 'favorites', label: 'Избранные', badge: '★', badgeClass: 'opacity-75' },
+  { value: 'bluechips', label: 'Голубые фишки', badge: '⚡', badgeClass: 'text-[#2CE89C]' },
+  { value: 'tbank_favorites', label: 'Избранное Т-Банк', badge: '💛', badgeClass: 'text-[#FFDD2D]' },
+];
+
+const strategyOptions = [
+  { value: 'rsi_nw', label: 'RSI + NW', badge: 'Default', badgeClass: 'opacity-75' },
+  { value: 'rsi_or_nw', label: 'RSI или NW' },
+  { value: 'nw_only', label: 'Только NW' },
+  { value: 'rsi_only', label: 'Только RSI' },
+];
 
 const isMaximized = ref(false);
 const isAlwaysOnTop = ref(false);
 let removeStateListener = null;
+
+// Compact search state
+const isSearchOpen = ref(false);
+const compactSearchInputRef = ref(null);
+
+function openSearch() {
+  isSearchOpen.value = true;
+  nextTick(() => {
+    compactSearchInputRef.value?.focus();
+  });
+}
+
+function handleSearchBlur() {
+  if (!props.searchQuery || props.searchQuery.trim().length === 0) {
+    isSearchOpen.value = false;
+  }
+}
+
+function clearSearch() {
+  emit('update:searchQuery', '');
+  isSearchOpen.value = false;
+}
+
+function closeSearch() {
+  emit('update:searchQuery', '');
+  isSearchOpen.value = false;
+}
+
+// Compact 4-dots dropdown menu state
+const isCompactMenuOpen = ref(false);
+const compactMenuContainerRef = ref(null);
+
+function toggleCompactMenu() {
+  isCompactMenuOpen.value = !isCompactMenuOpen.value;
+}
+
+function handleOutsideClick(e) {
+  if (compactMenuContainerRef.value && !compactMenuContainerRef.value.contains(e.target)) {
+    isCompactMenuOpen.value = false;
+  }
+}
+
+function handleKeydown(e) {
+  if (e.key === 'Escape') {
+    if (isCompactMenuOpen.value) {
+      isCompactMenuOpen.value = false;
+    }
+  }
+}
 
 onMounted(() => {
   // Restore persisted "always on top" preference
@@ -218,12 +484,17 @@ onMounted(() => {
       });
     }
   }
+
+  document.addEventListener('click', handleOutsideClick);
+  window.addEventListener('keydown', handleKeydown);
 });
 
 onUnmounted(() => {
   if (typeof removeStateListener === 'function') {
     removeStateListener();
   }
+  document.removeEventListener('click', handleOutsideClick);
+  window.removeEventListener('keydown', handleKeydown);
 });
 
 function toggleAlwaysOnTop() {

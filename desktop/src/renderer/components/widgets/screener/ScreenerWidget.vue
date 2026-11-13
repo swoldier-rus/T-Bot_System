@@ -8,6 +8,19 @@
       :edit-favorites-mode="editFavoritesMode"
       :link-group-color="linkGroupColor"
       :link-group-tooltip="linkGroupTooltip"
+      :condensed="settings.condensed"
+      :asset-filter="assetFilter"
+      :strategy-mode="strategyMode"
+      :use-c-c-i="useCCI"
+      :use-s-t-c-h="useSTCH"
+      :server-online="serverOnline"
+      :server-ping-label="serverPingLabel"
+      @update:timeframe="selectTimeframe"
+      @update:asset-filter="assetFilter = $event"
+      @update:strategy-mode="strategyMode = $event"
+      @update:use-c-c-i="useCCI = $event"
+      @update:use-s-t-c-h="useSTCH = $event"
+      @toggle-server="toggleServerConnection"
       @cycle-color="cycleLinkGroupColor"
       @toggle-edit-favorites="toggleEditFavoritesMode"
       @open-settings="isSettingsOpen = true"
@@ -15,6 +28,7 @@
 
     <!-- 2. Toolbar -->
     <ScreenerToolbar
+      v-if="!settings.condensed"
       :timeframe="timeframe"
       :asset-filter="assetFilter"
       :strategy-mode="strategyMode"
@@ -55,6 +69,7 @@
       :neutral-count="counts.neutral"
       :thresholds="settings.thresholds"
       :volume-days-x="settings.volumeDaysX"
+      :condensed="settings.condensed"
     />
 
     <!-- 5. Settings Modal -->
