@@ -4,6 +4,7 @@ import { CandleAggregator } from './core/candle-aggregator';
 import { EventBus } from './core/event-bus';
 import { ModuleManager } from './core/module-manager';
 import { SharedState } from './core/shared-state';
+import { DatabaseService } from './core/database-service';
 import { StreamManager } from './core/stream-manager';
 import { TelegramService } from './core/telegram-service';
 import { createRestApp } from './gateway/rest-api';

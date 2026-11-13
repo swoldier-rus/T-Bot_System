@@ -7,6 +7,7 @@ import {
   queueCandleTick,
 } from './useScreenerState.js';
 import { useFavorites } from './useFavorites.js';
+import { useSettings } from './useSettings.js';
 
 const serverOnline = ref(true);
 const realConnected = ref(false);
@@ -124,6 +125,33 @@ export function useWebSocket() {
           fetchTBankFavorites(wsPort);
 
           sendActiveUniverse();
+
+          // Sync indicator params and thresholds to backend on open
+          const { settings } = useSettings();
+          if (settings && settings.indicatorParams) {
+            const p = settings.indicatorParams;
+            const th = settings.thresholds;
+            ws.send(JSON.stringify({
+              action: 'SET_INDICATOR_PARAMS',
+              params: {
+                rsiPeriod: p.rsiPeriod,
+                rsiOversold: th.rsiLow,
+                rsiOverbought: th.rsiHigh,
+                stochK: p.stochK,
+                stochSmooth: p.stochSmooth,
+                stochD: p.stochD,
+                stochOversold: th.stchLow,
+                stochOverbought: th.stchHigh,
+                cciPeriod: p.cciPeriod,
+                cciOversold: th.cciLow,
+                cciOverbought: th.cciHigh,
+                nwBandwidth: p.nwBandwidth,
+                nwMult: p.nwMult,
+                nwRepaint: p.nwRepaint,
+                rvolDays: settings.volumeDaysX,
+              }
+            }));
+          }
         };
 
         ws.onmessage = (event) => {

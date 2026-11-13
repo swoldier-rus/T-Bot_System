@@ -74,4 +74,34 @@ describe('DatabaseService (SQLite default_tickers)', () => {
 
     db.close();
   });
+  it('stores, updates, and persists indicator params in SQLite', () => {
+    const db = new DatabaseService({ dbPath: ':memory:' });
+    expect(db.getIndicatorParams()).toBeNull();
+
+    db.setIndicatorParams({ rsiPeriod: 21, rsiOversold: 25, rsiOverbought: 75 });
+    const saved = db.getIndicatorParams();
+    expect(saved).toEqual({ rsiPeriod: 21, rsiOversold: 25, rsiOverbought: 75 });
+
+    // Partial update merges
+    db.setIndicatorParams({ nwBandwidth: 12.5 });
+    const merged = db.getIndicatorParams();
+    expect(merged).toEqual({ rsiPeriod: 21, rsiOversold: 25, rsiOverbought: 75, nwBandwidth: 12.5 });
+
+    db.close();
+  });
+
+  it('initializes SharedState with persisted indicator params from SQLite', () => {
+    const db = new DatabaseService({ dbPath: ':memory:' });
+    db.setIndicatorParams({ rsiPeriod: 25, cciPeriod: 30 });
+
+    const sharedState = new SharedState(db);
+    expect(sharedState.getDefaultParams().rsiPeriod).toBe(25);
+    expect(sharedState.getDefaultParams().cciPeriod).toBe(30);
+
+    // Updating SharedState updates database
+    sharedState.updateDefaultParams({ rsiPeriod: 28 });
+    expect(db.getIndicatorParams()?.rsiPeriod).toBe(28);
+
+    db.close();
+  });
 });

@@ -62,9 +62,36 @@ function applyDomTheme() {
 // Initial apply
 applyDomTheme();
 
-// Fetch initial indicator thresholds from backend
+// Sync indicator parameters with backend on boot
 async function syncFromBackend() {
   try {
+    const hasLocalSettings = !!localStorage.getItem(STORAGE_KEY);
+    if (hasLocalSettings) {
+      // Local settings exist -> push client's saved configuration to backend
+      await fetch('http://127.0.0.1:3001/config/indicators', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rvolDays: settings.volumeDaysX,
+          rsiPeriod: settings.indicatorParams.rsiPeriod,
+          rsiOversold: settings.thresholds.rsiLow,
+          rsiOverbought: settings.thresholds.rsiHigh,
+          stochK: settings.indicatorParams.stochK,
+          stochSmooth: settings.indicatorParams.stochSmooth,
+          stochD: settings.indicatorParams.stochD,
+          stochOversold: settings.thresholds.stchLow,
+          stochOverbought: settings.thresholds.stchHigh,
+          cciPeriod: settings.indicatorParams.cciPeriod,
+          cciOversold: settings.thresholds.cciLow,
+          cciOverbought: settings.thresholds.cciHigh,
+          nwBandwidth: settings.indicatorParams.nwBandwidth,
+          nwMult: settings.indicatorParams.nwMult,
+          nwRepaint: settings.indicatorParams.nwRepaint,
+        })
+      });
+      return;
+    }
+
     const res = await fetch('http://127.0.0.1:3001/config/indicators');
     if (res.ok) {
       const data = await res.json();

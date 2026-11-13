@@ -36,6 +36,20 @@ export class SharedState implements ISharedStateReader {
   // Server-wide default indicator calculation parameters
   private defaultParams: IndicatorParams = { ...DEFAULT_INDICATOR_PARAMS };
 
+  constructor(private databaseService?: DatabaseService) {
+    if (this.databaseService && typeof (this.databaseService as any).getIndicatorParams === 'function') {
+      const saved = this.databaseService.getIndicatorParams();
+      if (saved) {
+        this.defaultParams = {
+          ...DEFAULT_INDICATOR_PARAMS,
+          ...saved,
+        };
+      }
+    } else {
+      this.databaseService = undefined;
+    }
+  }
+
   public markDirty(ticker: string): void {
     this.dirtyTickers.add(ticker.toUpperCase());
   }
@@ -307,6 +321,9 @@ export class SharedState implements ISharedStateReader {
       ...this.defaultParams,
       ...params,
     };
+    if (this.databaseService && typeof this.databaseService.setIndicatorParams === 'function') {
+      this.databaseService.setIndicatorParams(this.defaultParams);
+    }
     for (const ticker of this.stockItems.keys()) {
       this.recomputeAllIndicatorsForStock(ticker, this.defaultParams);
     }

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { DatabaseSync } from 'node:sqlite';
+import { IndicatorParams } from '../types/market';
 
 export interface DatabaseServiceOptions {
   dbPath?: string;
@@ -23,6 +24,7 @@ export class DatabaseService {
 
     this.db = new DatabaseSync(targetPath);
     this.initSchema();
+    this.initIndicatorParamsSchema();
   }
 
   private initSchema(): void {
@@ -136,6 +138,44 @@ export class DatabaseService {
   /**
    * Close SQLite database connection.
    */
+    private initIndicatorParamsSchema(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS indicator_params (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        params_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+    `);
+  }
+
+  public getIndicatorParams(): Partial<IndicatorParams> | null {
+    try {
+      const stmt = this.db.prepare('SELECT params_json FROM indicator_params WHERE id = 1;');
+      const row = stmt.get() as { params_json: string } | undefined;
+      if (row && row.params_json) {
+        return JSON.parse(row.params_json);
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }
+
+  public setIndicatorParams(params: Partial<IndicatorParams>): void {
+    try {
+      const existing = this.getIndicatorParams() || {};
+      const merged = { ...existing, ...params };
+      const stmt = this.db.prepare(`
+        INSERT INTO indicator_params (id, params_json, updated_at)
+        VALUES (1, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET params_json = excluded.params_json, updated_at = excluded.updated_at;
+      `);
+      stmt.run(JSON.stringify(merged), Date.now());
+    } catch (e) {
+      console.error('Failed to save indicator params to SQLite', e);
+    }
+  }
+
   public close(): void {
     try {
       this.db.close();

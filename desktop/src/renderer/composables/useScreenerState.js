@@ -99,16 +99,87 @@ initialInstruments.forEach(item => {
   }
 });
 
+const STORAGE_KEY_TIMEFRAME = 'moex_screener_timeframe';
+const STORAGE_KEY_ASSET_FILTER = 'moex_screener_asset_filter';
+const STORAGE_KEY_STRATEGY_MODE = 'moex_screener_strategy_mode';
+const STORAGE_KEY_USE_CCI = 'moex_screener_use_cci';
+const STORAGE_KEY_USE_STCH = 'moex_screener_use_stch';
+const STORAGE_KEY_SORT_BY = 'moex_screener_sort_by';
+const STORAGE_KEY_SORT_DESC = 'moex_screener_sort_desc';
+
+function loadSavedTimeframe() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_TIMEFRAME);
+    if (saved && ['5м', '15м', '1ч', '4ч', '1д'].includes(saved)) {
+      return saved;
+    }
+  } catch (e) {}
+  return '15м';
+}
+
+function loadSavedAssetFilter() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_ASSET_FILTER);
+    if (saved && ['all', 'bluechips', 'favorites', 'tbank_favorites'].includes(saved)) {
+      return saved;
+    }
+  } catch (e) {}
+  return 'all';
+}
+
+function loadSavedStrategyMode() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_STRATEGY_MODE);
+    if (saved && ['rsi_nw', 'rsi_only', 'nw_only', 'rsi_or_nw'].includes(saved)) {
+      return saved;
+    }
+  } catch (e) {}
+  return 'rsi_nw';
+}
+
+function loadSavedToggle(key, defaultValue) {
+  try {
+    const saved = localStorage.getItem(key);
+    if (saved !== null) {
+      return saved === 'true';
+    }
+  } catch (e) {}
+  return defaultValue;
+}
+
+function loadSavedSortBy() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_SORT_BY);
+    if (saved) return saved;
+  } catch (e) {}
+  return 'statusScore';
+}
+
+function loadSavedSortDesc() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_SORT_DESC);
+    if (saved !== null) return saved === 'true';
+  } catch (e) {}
+  return true;
+}
+
 // Module-level reactive state
+const initialSavedTf = loadSavedTimeframe();
 const instruments = reactive(JSON.parse(JSON.stringify(initialInstruments)));
-const timeframe = ref('15м');
-const assetFilter = ref('all');
-const strategyMode = ref('rsi_nw');
-const useCCI = ref(true);
-const useSTCH = ref(true);
+if (initialSavedTf !== '15м') {
+  instruments.forEach(item => {
+    applyTimeframe(item, initialSavedTf);
+  });
+}
+
+const timeframe = ref(initialSavedTf);
+const assetFilter = ref(loadSavedAssetFilter());
+const strategyMode = ref(loadSavedStrategyMode());
+const useCCI = ref(loadSavedToggle(STORAGE_KEY_USE_CCI, true));
+const useSTCH = ref(loadSavedToggle(STORAGE_KEY_USE_STCH, true));
 const searchQuery = ref('');
-const sortBy = ref('statusScore');
-const sortDesc = ref(true);
+const sortBy = ref(loadSavedSortBy());
+const sortDesc = ref(loadSavedSortDesc());
 const editFavoritesMode = ref(false);
 
 const groupColorIdx = ref(loadInitialSignalFilterIdx());
@@ -323,10 +394,32 @@ if (typeof window !== 'undefined' && !window.__moexResortTimer) {
 
 const lastNotified = {};
 
+watch(assetFilter, (newVal) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_ASSET_FILTER, newVal);
+  } catch (e) {}
+});
+
+watch(useCCI, (newVal) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_USE_CCI, String(newVal));
+  } catch (e) {}
+});
+
+watch(useSTCH, (newVal) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_USE_STCH, String(newVal));
+  } catch (e) {}
+});
+
 // Strategy switching presets:
 // - rsi_only, nw_only, rsi_or_nw: default CCI and STCH to OFF.
 // - rsi_nw: enable both CCI and STCH (display/highlight only, strict 2-indicator confluence).
-watch(strategyMode, (newMode) => {
+watch(strategyMode, (newMode, oldMode) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_STRATEGY_MODE, newMode);
+  } catch (e) {}
+  if (oldMode === undefined) return;
   if (newMode === 'rsi_only' || newMode === 'nw_only' || newMode === 'rsi_or_nw') {
     useCCI.value = false;
     useSTCH.value = false;
@@ -360,12 +453,19 @@ export function useScreenerState() {
       sortBy.value = col;
       sortDesc.value = true;
     }
+    try {
+      localStorage.setItem(STORAGE_KEY_SORT_BY, sortBy.value);
+      localStorage.setItem(STORAGE_KEY_SORT_DESC, String(sortDesc.value));
+    } catch (e) {}
     updateSortOrder();
     sortRevision.value++;
   }
 
   function selectTimeframe(tf) {
     timeframe.value = tf;
+    try {
+      localStorage.setItem(STORAGE_KEY_TIMEFRAME, tf);
+    } catch (e) {}
     instruments.forEach(item => {
       applyTimeframe(item, tf);
     });
@@ -379,6 +479,10 @@ export function useScreenerState() {
     groupColorIdx.value = 0;
     try {
       localStorage.setItem(STORAGE_KEY_SIGNAL_FILTER, '0');
+      localStorage.setItem(STORAGE_KEY_ASSET_FILTER, 'all');
+      localStorage.setItem(STORAGE_KEY_STRATEGY_MODE, 'rsi_nw');
+      localStorage.setItem(STORAGE_KEY_USE_CCI, 'true');
+      localStorage.setItem(STORAGE_KEY_USE_STCH, 'true');
     } catch (e) {}
     useCCI.value = true;
     useSTCH.value = true;
