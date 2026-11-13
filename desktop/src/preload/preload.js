@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   closeWindow: () => ipcRenderer.send('window-close'),
   toggleFullscreen: () => ipcRenderer.send('window-fullscreen-toggle'),
   setAlwaysOnTop: (flag) => ipcRenderer.send('window-set-always-on-top', flag),
+  setWindowMinSize: (minWidth, minHeight) => ipcRenderer.invoke('window-set-min-size', { minWidth, minHeight }),
   isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
   isFullscreen: () => ipcRenderer.invoke('window-is-fullscreen'),
   isAlwaysOnTop: () => ipcRenderer.invoke('window-is-always-on-top'),

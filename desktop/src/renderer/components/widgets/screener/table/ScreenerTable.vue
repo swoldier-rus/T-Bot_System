@@ -1,6 +1,6 @@
 <template>
   <div class="flex-1 overflow-auto min-h-0">
-    <table class="screener-table">
+    <table class="screener-table" :style="{ minWidth: tableMinWidth + 'px' }">
       <TableHeader
         :sort-by="sortBy"
         :sort-desc="sortDesc"
@@ -105,7 +105,7 @@ import RowPrice from './RowPrice.vue';
 import RowVolume from './RowVolume.vue';
 import RowIndicatorCell from './RowIndicatorCell.vue';
 import RowStatus from './RowStatus.vue';
-import { DEFAULT_TABLE_COLUMNS } from '@/composables/useSettings.js';
+import { DEFAULT_TABLE_COLUMNS, calculateMinTableWidth } from '@/composables/useSettings.js';
 
 const props = defineProps({
   rows: {
@@ -155,6 +155,8 @@ const props = defineProps({
 });
 
 defineEmits(['sort', 'resetFilters', 'toggleFavorite']);
+
+const tableMinWidth = computed(() => calculateMinTableWidth(props.columns));
 
 const visibleColumns = computed(() => {
   if (Array.isArray(props.columns) && props.columns.length > 0) {

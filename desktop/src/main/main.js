@@ -25,7 +25,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1420,
     height: 880,
-    minWidth: 960,
+    minWidth: 835,
     minHeight: 180,
     frame: false, // Frameless window
     backgroundColor: '#12151B',
@@ -131,6 +131,18 @@ ipcMain.handle('window-is-fullscreen', () => {
 
 ipcMain.handle('window-is-always-on-top', () => {
   return mainWindow ? mainWindow.isAlwaysOnTop() : false;
+});
+
+ipcMain.handle('window-set-min-size', (_event, { minWidth, minHeight }) => {
+  if (!mainWindow) return false;
+  const targetWidth = Math.max(380, Math.round(minWidth || 380));
+  const targetHeight = Math.max(180, Math.round(minHeight || 180));
+  mainWindow.setMinimumSize(targetWidth, targetHeight);
+  const [curW, curH] = mainWindow.getSize();
+  if (curW < targetWidth) {
+    mainWindow.setSize(targetWidth, curH);
+  }
+  return true;
 });
 
 // Backend management IPC

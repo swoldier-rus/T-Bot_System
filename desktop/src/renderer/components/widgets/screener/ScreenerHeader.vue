@@ -10,7 +10,7 @@
         :title="linkGroupTooltip"
       ></button>
 
-      <span class="font-semibold text-[13px] tracking-tight truncate" style="color: var(--text-primary);">
+      <span class="font-semibold text-[13px] tracking-tight truncate max-w-[130px] sm:max-w-none" style="color: var(--text-primary);">
         RSI + Nadaraya-Watson
       </span>
 
@@ -19,7 +19,7 @@
       </span>
 
       <span
-        class="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-[rgba(112,139,164,0.14)]"
+        class="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] bg-[rgba(112,139,164,0.14)]"
         style="color: var(--text-secondary);"
       >
         Бумаг: <strong class="text-white tabular-nums">{{ totalCount }}</strong>

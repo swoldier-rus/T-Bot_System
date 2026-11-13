@@ -17,7 +17,7 @@
       :value="modelValue"
       @input="$emit('update:modelValue', $event.target.value)"
       :placeholder="placeholder"
-      class="h-[24px] w-[125px] sm:w-[155px] pl-7 pr-6 rounded text-[12px] bg-[rgba(112,139,164,0.16)] focus:bg-[#21313F] focus:ring-1 focus:ring-[#428BF9] outline-none transition"
+      class="h-[24px] w-[95px] min-w-[75px] xs:w-[125px] sm:w-[155px] pl-7 pr-6 rounded text-[12px] bg-[rgba(112,139,164,0.16)] focus:bg-[#21313F] focus:ring-1 focus:ring-[#428BF9] outline-none transition"
       style="color: var(--text-primary);"
     />
     <button

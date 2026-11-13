@@ -3,14 +3,35 @@ import { ref, reactive, watch } from 'vue';
 const STORAGE_KEY = 'moex_screener_settings';
 
 export const DEFAULT_TABLE_COLUMNS = [
-  { id: 'price', label: 'Цена/Изм', visible: true, hint: 'Текущая цена последней сделки и процентное изменение цены за торговую сессию.' },
-  { id: 'volume', label: 'Объем', visible: true, hint: 'Дневной торговый объем в млн руб. и процентное отклонение от среднего объема за выбранный период.' },
-  { id: 'rsi', label: 'RSI', visible: true, hint: 'Индекс относительной силы (Relative Strength Index). Сигналы перекупленности и перепроданности.' },
-  { id: 'nw', label: 'NWE', visible: true, hint: 'Конверт Надарая-Ватсона (Nadaraya-Watson Envelope) с фильтрацией тренда и отскоков.' },
-  { id: 'cci', label: 'CCI', visible: true, hint: 'Индекс товарного канала (Commodity Channel Index). Определение циклических экстремумов.' },
-  { id: 'stch', label: 'Stoch', visible: true, hint: 'Стохастический осциллятор (%K / %D). Опережающие сигналы разворота импульса.' },
-  { id: 'status', label: 'Статус', visible: true, hint: 'Итоговый сигнал стратегии (BUY / SELL / NEUTRAL) с перечислением подтверждающих индикаторов.' },
+  { id: 'price', label: 'Цена/Изм', width: 115, visible: true, hint: 'Текущая цена последней сделки и процентное изменение цены за торговую сессию.' },
+  { id: 'volume', label: 'Объем', width: 145, visible: true, hint: 'Дневной торговый объем в млн руб. и процентное отклонение от среднего объема за выбранный период.' },
+  { id: 'rsi', label: 'RSI', width: 95, visible: true, hint: 'Индекс относительной силы (Relative Strength Index). Сигналы перекупленности и перепроданности.' },
+  { id: 'nw', label: 'NWE', width: 115, visible: true, hint: 'Конверт Надарая-Ватсона (Nadaraya-Watson Envelope) с фильтрацией тренда и отскоков.' },
+  { id: 'cci', label: 'CCI', width: 95, visible: true, hint: 'Индекс товарного канала (Commodity Channel Index). Определение циклических экстремумов.' },
+  { id: 'stch', label: 'Stoch', width: 95, visible: true, hint: 'Стохастический осциллятор (%K / %D). Опережающие сигналы разворота импульса.' },
+  { id: 'status', label: 'Статус', width: 135, visible: true, hint: 'Итоговый сигнал стратегии (BUY / SELL / NEUTRAL) с перечислением подтверждающих индикаторов.' },
 ];
+
+export const FIXED_INSTRUMENT_WIDTH = 145;
+export const MIN_WINDOW_WIDTH_FLOOR = 380;
+
+export function calculateMinTableWidth(columns) {
+  let total = FIXED_INSTRUMENT_WIDTH;
+  const cols = Array.isArray(columns) && columns.length > 0 ? columns : DEFAULT_TABLE_COLUMNS;
+  for (const c of cols) {
+    if (c && c.visible !== false) {
+      total += (typeof c.width === 'number' ? c.width : 100);
+    }
+  }
+  return Math.max(MIN_WINDOW_WIDTH_FLOOR, total);
+}
+
+function syncWindowMinSize(columns) {
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.setWindowMinSize === 'function') {
+    const minW = calculateMinTableWidth(columns);
+    window.electronAPI.setWindowMinSize(minW, 180);
+  }
+}
 
 function loadColumns(savedColumns) {
   if (!Array.isArray(savedColumns) || savedColumns.length === 0) {
@@ -26,6 +47,7 @@ function loadColumns(savedColumns) {
       result.push({
         id: col.id,
         label: def.label,
+        width: def.width,
         hint: def.hint,
         visible: typeof col.visible === 'boolean' ? col.visible : true,
       });
@@ -103,6 +125,7 @@ function applyDomTheme() {
 
 // Initial apply
 applyDomTheme();
+syncWindowMinSize(settings.tableColumns);
 
 // Sync indicator parameters with backend on boot
 async function syncFromBackend() {
@@ -204,6 +227,7 @@ export function useSettings() {
     settings.contrast = DEFAULT_SETTINGS.contrast;
     settings.soundAlerts = DEFAULT_SETTINGS.soundAlerts;
     settings.tableColumns = DEFAULT_TABLE_COLUMNS.map(c => ({ ...c }));
+    syncWindowMinSize(settings.tableColumns);
     persist();
   }
 
