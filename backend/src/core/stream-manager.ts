@@ -453,7 +453,9 @@ export class StreamManager {
           });
           if (closeResp.closePrices) {
             for (const cp of closeResp.closePrices) {
-              const price = Helpers.toNumber(cp.price);
+              const evePrice = cp.eveningSessionPrice ? Helpers.toNumber(cp.eveningSessionPrice) : null;
+              const dayPrice = cp.price ? Helpers.toNumber(cp.price) : null;
+              const price = (evePrice && evePrice > 0) ? evePrice : dayPrice;
               if (price && price > 0) {
                 this.sharedState.setClosePrice(cp.figi, price);
               }
@@ -830,7 +832,9 @@ export class StreamManager {
 
       if (closeResp.closePrices) {
         for (const cp of closeResp.closePrices) {
-          const price = Helpers.toNumber(cp.price);
+          const evePrice = cp.eveningSessionPrice ? Helpers.toNumber(cp.eveningSessionPrice) : null;
+          const dayPrice = cp.price ? Helpers.toNumber(cp.price) : null;
+          const price = (evePrice && evePrice > 0) ? evePrice : dayPrice;
           if (price && price > 0) {
             this.sharedState.setClosePrice(cp.figi, price);
           }
@@ -878,7 +882,9 @@ export class StreamManager {
 
         if (closeResp.closePrices) {
           for (const cp of closeResp.closePrices) {
-            const price = Helpers.toNumber(cp.price);
+            const evePrice = cp.eveningSessionPrice ? Helpers.toNumber(cp.eveningSessionPrice) : null;
+            const dayPrice = cp.price ? Helpers.toNumber(cp.price) : null;
+            const price = (evePrice && evePrice > 0) ? evePrice : dayPrice;
             if (price && price > 0) {
               this.sharedState.setClosePrice(cp.figi, price);
             }

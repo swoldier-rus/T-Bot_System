@@ -11,6 +11,7 @@ import {
 } from '../types/market';
 import { ISharedStateReader } from '../types/modules';
 import { FixedRingBuffer } from './ring-buffer';
+import { DatabaseService } from './database-service';
 
 export class SharedState implements ISharedStateReader {
   // Store order books by ticker
