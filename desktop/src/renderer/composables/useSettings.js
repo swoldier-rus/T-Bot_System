@@ -26,10 +26,9 @@ export function calculateMinTableWidth(columns) {
   return Math.max(MIN_WINDOW_WIDTH_FLOOR, total);
 }
 
-function syncWindowMinSize(columns) {
+function syncWindowMinSize() {
   if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.setWindowMinSize === 'function') {
-    const minW = calculateMinTableWidth(columns);
-    window.electronAPI.setWindowMinSize(minW, 180);
+    window.electronAPI.setWindowMinSize(MIN_WINDOW_WIDTH_FLOOR, 180);
   }
 }
 
@@ -125,7 +124,7 @@ function applyDomTheme() {
 
 // Initial apply
 applyDomTheme();
-syncWindowMinSize(settings.tableColumns);
+syncWindowMinSize();
 
 // Sync indicator parameters with backend on boot
 async function syncFromBackend() {
@@ -227,7 +226,7 @@ export function useSettings() {
     settings.contrast = DEFAULT_SETTINGS.contrast;
     settings.soundAlerts = DEFAULT_SETTINGS.soundAlerts;
     settings.tableColumns = DEFAULT_TABLE_COLUMNS.map(c => ({ ...c }));
-    syncWindowMinSize(settings.tableColumns);
+    syncWindowMinSize();
     persist();
   }
 

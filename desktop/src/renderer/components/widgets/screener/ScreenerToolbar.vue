@@ -11,7 +11,7 @@
       </div>
 
       <!-- Group 2: Assets & Strategy dropdowns -->
-      <div class="flex items-center gap-1.5 shrink-0">
+      <div class="flex flex-wrap items-center gap-1.5">
         <UiDropdown
           :model-value="assetFilter"
           :items="assetOptions"
@@ -32,7 +32,7 @@
       </div>
 
       <!-- Group 3: CCI & STCH Toggles -->
-      <div class="flex items-center gap-1.5 shrink-0">
+      <div class="flex flex-wrap items-center gap-1.5">
         <UiToggleChip
           :model-value="useCCI"
           label="CCI"

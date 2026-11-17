@@ -25,7 +25,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1420,
     height: 880,
-    minWidth: 835,
+    minWidth: 380,
     minHeight: 180,
     frame: false, // Frameless window
     backgroundColor: '#12151B',
