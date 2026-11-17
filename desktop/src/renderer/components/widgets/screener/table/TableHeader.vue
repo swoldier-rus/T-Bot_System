@@ -45,7 +45,7 @@
         <!-- 3. RSI -->
         <th
           v-else-if="col.id === 'rsi'"
-          class="w-[95px] text-center cursor-pointer"
+          class="w-[80px] text-center cursor-pointer"
           @click="$emit('sort', 'rsi')"
         >
           <div class="flex items-center justify-center gap-1">
@@ -59,7 +59,7 @@
         <!-- 4. NW -->
         <th
           v-else-if="col.id === 'nw'"
-          class="w-[115px] text-center cursor-pointer"
+          class="w-[80px] text-center cursor-pointer"
           @click="$emit('sort', 'nw')"
         >
           <div class="flex items-center justify-center gap-1">
@@ -73,7 +73,7 @@
         <!-- 5. CCI -->
         <th
           v-else-if="col.id === 'cci'"
-          class="w-[95px] text-center cursor-pointer"
+          class="w-[80px] text-center cursor-pointer"
           @click="$emit('sort', 'cci')"
         >
           <div class="flex items-center justify-center gap-1">
@@ -87,7 +87,7 @@
         <!-- 6. STCH -->
         <th
           v-else-if="col.id === 'stch'"
-          class="w-[95px] text-center cursor-pointer"
+          class="w-[80px] text-center cursor-pointer"
           @click="$emit('sort', 'stch')"
         >
           <div class="flex items-center justify-center gap-1">
@@ -101,7 +101,7 @@
         <!-- 7. Status -->
         <th
           v-else-if="col.id === 'status'"
-          class="w-[135px] text-right cursor-pointer"
+          class="w-[85px] text-right cursor-pointer"
           @click="$emit('sort', 'statusScore')"
         >
           <div class="flex items-center justify-end gap-1">

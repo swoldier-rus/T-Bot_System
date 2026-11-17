@@ -5,11 +5,11 @@ const STORAGE_KEY = 'moex_screener_settings';
 export const DEFAULT_TABLE_COLUMNS = [
   { id: 'price', label: 'Цена/Изм', width: 115, visible: true, hint: 'Текущая цена последней сделки и процентное изменение цены за торговую сессию.' },
   { id: 'volume', label: 'Объем', width: 145, visible: true, hint: 'Дневной торговый объем в млн руб. и процентное отклонение от среднего объема за выбранный период.' },
-  { id: 'rsi', label: 'RSI', width: 95, visible: true, hint: 'Индекс относительной силы (Relative Strength Index). Сигналы перекупленности и перепроданности.' },
-  { id: 'nw', label: 'NWE', width: 115, visible: true, hint: 'Конверт Надарая-Ватсона (Nadaraya-Watson Envelope) с фильтрацией тренда и отскоков.' },
-  { id: 'cci', label: 'CCI', width: 95, visible: true, hint: 'Индекс товарного канала (Commodity Channel Index). Определение циклических экстремумов.' },
-  { id: 'stch', label: 'Stoch', width: 95, visible: true, hint: 'Стохастический осциллятор (%K / %D). Опережающие сигналы разворота импульса.' },
-  { id: 'status', label: 'Статус', width: 135, visible: true, hint: 'Итоговый сигнал стратегии (BUY / SELL / NEUTRAL) с перечислением подтверждающих индикаторов.' },
+  { id: 'rsi', label: 'RSI', width: 80, visible: true, hint: 'Индекс относительной силы (Relative Strength Index). Сигналы перекупленности и перепроданности.' },
+  { id: 'nw', label: 'NWE', width: 80, visible: true, hint: 'Конверт Надарая-Ватсона (Nadaraya-Watson Envelope) с фильтрацией тренда и отскоков.' },
+  { id: 'cci', label: 'CCI', width: 80, visible: true, hint: 'Индекс товарного канала (Commodity Channel Index). Определение циклических экстремумов.' },
+  { id: 'stch', label: 'Stoch', width: 80, visible: true, hint: 'Стохастический осциллятор (%K / %D). Опережающие сигналы разворота импульса.' },
+  { id: 'status', label: 'Статус', width: 85, visible: true, hint: 'Итоговый сигнал стратегии (BUY / SELL / NEUTRAL) с перечислением подтверждающих индикаторов.' },
 ];
 
 export const FIXED_INSTRUMENT_WIDTH = 145;
