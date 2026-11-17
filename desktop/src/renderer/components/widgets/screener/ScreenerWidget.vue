@@ -78,6 +78,7 @@
       :volume-days-x="settings.volumeDaysX"
       :thresholds="settings.thresholds"
       :indicator-params="settings.indicatorParams"
+      :alerts="settings.alerts"
       :table-columns="settings.tableColumns"
       :theme="settings.theme"
       :condensed="settings.condensed"
@@ -155,6 +156,7 @@ function handleSaveSettings(newSettings) {
   if (typeof newSettings.volumeDaysX === 'number') settings.volumeDaysX = newSettings.volumeDaysX;
   if (newSettings.thresholds) settings.thresholds = { ...newSettings.thresholds };
   if (newSettings.indicatorParams) settings.indicatorParams = { ...newSettings.indicatorParams };
+  if (newSettings.alerts) settings.alerts = { ...newSettings.alerts };
   if (Array.isArray(newSettings.tableColumns)) settings.tableColumns = newSettings.tableColumns;
   persist();
   isSettingsOpen.value = false;

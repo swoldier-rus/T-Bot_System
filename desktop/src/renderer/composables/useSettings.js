@@ -62,6 +62,16 @@ function loadColumns(savedColumns) {
   return result;
 }
 
+export const DEFAULT_ALERTS = {
+  systemNotifications: true,
+  soundEnabled: true,
+  soundVolume: 80,
+  triggerMode: 'once', // 'once' | 'interval'
+  repeatIntervalMin: 3,
+  buySoundPath: '',
+  sellSoundPath: '',
+};
+
 const DEFAULT_SETTINGS = {
   volumeDaysX: 20,
   thresholds: {
@@ -82,6 +92,7 @@ const DEFAULT_SETTINGS = {
     nwRepaint: true,
     cciPeriod: 20,
   },
+  alerts: { ...DEFAULT_ALERTS },
   theme: 'night',
   condensed: false,
   contrast: false,
@@ -99,6 +110,7 @@ function loadSettings() {
         ...parsed,
         thresholds: { ...DEFAULT_SETTINGS.thresholds, ...(parsed.thresholds || {}) },
         indicatorParams: { ...DEFAULT_SETTINGS.indicatorParams, ...(parsed.indicatorParams || {}) },
+        alerts: { ...DEFAULT_ALERTS, ...(parsed.alerts || {}) },
         tableColumns: loadColumns(parsed.tableColumns),
       };
     }
@@ -109,6 +121,7 @@ function loadSettings() {
     ...DEFAULT_SETTINGS,
     thresholds: { ...DEFAULT_SETTINGS.thresholds },
     indicatorParams: { ...DEFAULT_SETTINGS.indicatorParams },
+    alerts: { ...DEFAULT_ALERTS },
     tableColumns: DEFAULT_TABLE_COLUMNS.map(c => ({ ...c })),
   };
 }
@@ -225,6 +238,7 @@ export function useSettings() {
     settings.condensed = DEFAULT_SETTINGS.condensed;
     settings.contrast = DEFAULT_SETTINGS.contrast;
     settings.soundAlerts = DEFAULT_SETTINGS.soundAlerts;
+    settings.alerts = { ...DEFAULT_ALERTS };
     settings.tableColumns = DEFAULT_TABLE_COLUMNS.map(c => ({ ...c }));
     syncWindowMinSize();
     persist();

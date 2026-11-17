@@ -1,6 +1,7 @@
 import { ref, computed, reactive, watch } from 'vue';
 import { useFavorites } from './useFavorites.js';
-import { useSettings } from './useSettings.js';
+import { useSettings, DEFAULT_ALERTS } from './useSettings.js';
+import { playAlertSound } from '@/services/soundService.js';
 
 const initialInstruments = [
   { ticker: 'SBER', fullName: 'Сбербанк России ПАО', color: '#19B26B', bluechip: true, price: 284.65, prevClose: 278.58, change: 2.18, volDiffBase: 68.4, volRubMln: 48200, rsi: 24.6, nw: 'BUY', cci: -138, stch: 14.2 },
@@ -393,7 +394,6 @@ if (typeof window !== 'undefined' && !window.__moexResortTimer) {
   }, 5000);
 }
 
-const lastNotified = {};
 
 watch(assetFilter, (newVal) => {
   try {
@@ -569,22 +569,6 @@ export function useScreenerState() {
     const dayFactor = 20 / settings.volumeDaysX;
     const volumeDiff = Number((item.volDiffBase * Math.pow(dayFactor, 0.35)).toFixed(1));
 
-    // Native notification trigger
-    const now = Date.now();
-    if (finalStatus !== 'NEUTRAL') {
-      const lastTime = lastNotified[item.ticker] || 0;
-      if (now - lastTime > 60000) {
-        lastNotified[item.ticker] = now;
-        if (typeof window.triggerDesktopAlert === 'function') {
-          const actionText = finalStatus === 'BUY' ? '🟢 ПОКУПКА' : '🔴 ПРОДАЖА';
-          window.triggerDesktopAlert(
-            `${actionText}: ${item.ticker} (${item.price.toFixed(2)} ₽)`,
-            `${reasons.join(' · ')} | Объем ${volumeDiff > 0 ? '+' : ''}${volumeDiff}%`
-          );
-        }
-      }
-    }
-
     let statusScore = 0;
     if (finalStatus === 'BUY') {
       statusScore = 10 + (rsiSignal > 0 ? 1 : 0) + (nwSignal > 0 ? 1 : 0) + (stchSignal > 0 ? 1 : 0) + (cciSignal > 0 ? 1 : 0);
@@ -630,6 +614,92 @@ export function useScreenerState() {
       return true;
     });
   });
+
+
+  // Centralized Alert Orchestration (Sounds & Windows Notifications)
+  const tickerAlertState = new Map();
+  let isInitialBoot = true;
+  if (typeof window !== 'undefined') {
+    setTimeout(() => {
+      isInitialBoot = false;
+    }, 4000);
+  }
+
+  function processAlerts(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) return;
+    const alerts = settings.alerts || DEFAULT_ALERTS;
+    if (!alerts.systemNotifications && !alerts.soundEnabled) return;
+
+    const now = Date.now();
+
+    for (const row of rows) {
+      const ticker = row.ticker;
+      const status = row.finalStatus; // 'BUY' | 'SELL' | 'NEUTRAL'
+
+      let state = tickerAlertState.get(ticker);
+      if (!state) {
+        state = { lastStatus: status, lastAlertTime: isInitialBoot ? now : 0 };
+        tickerAlertState.set(ticker, state);
+        if (isInitialBoot) continue;
+      }
+
+      if (isInitialBoot) {
+        state.lastStatus = status;
+        state.lastAlertTime = now;
+        continue;
+      }
+
+      if (status === 'NEUTRAL') {
+        state.lastStatus = 'NEUTRAL';
+        continue;
+      }
+
+      const isNewTransition = state.lastStatus !== status;
+      let shouldAlert = false;
+
+      if (alerts.triggerMode === 'once') {
+        if (isNewTransition) {
+          shouldAlert = true;
+        }
+      } else {
+        // 'interval'
+        const intervalMs = Math.max(1, Number(alerts.repeatIntervalMin) || 3) * 60 * 1000;
+        if (isNewTransition || (now - state.lastAlertTime >= intervalMs)) {
+          shouldAlert = true;
+        }
+      }
+
+      if (shouldAlert) {
+        state.lastAlertTime = now;
+        state.lastStatus = status;
+
+        // 1. Sound Alert
+        if (alerts.soundEnabled) {
+          const customPath = status === 'BUY' ? alerts.buySoundPath : alerts.sellSoundPath;
+          playAlertSound({
+            direction: status,
+            customPath,
+            volume: alerts.soundVolume,
+          });
+        }
+
+        // 2. Windows Native Desktop Alert
+        if (alerts.systemNotifications) {
+          if (typeof window !== 'undefined' && typeof window.triggerDesktopAlert === 'function') {
+            const actionText = status === 'BUY' ? '🟢 Buy' : '🔴 Sell';
+            window.triggerDesktopAlert(
+              `${actionText}: ${row.ticker} (${row.price.toFixed(2)} ₽)`,
+              `${row.reasonsText} | Объем ${row.volumeDiff > 0 ? '+' : ''}${row.volumeDiff}%`
+            );
+          }
+        }
+      }
+    }
+  }
+
+  watch(universeRows, (rows) => {
+    processAlerts(rows);
+  }, { deep: false });
 
   // Recompute stable sort order without jitter
   function updateSortOrder() {

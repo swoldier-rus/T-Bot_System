@@ -24,6 +24,13 @@
         </div>
         <div
           class="settings-vert-tab"
+          :class="{ active: activeTab === 'alerts' }"
+          @click="activeTab = 'alerts'"
+        >
+          <span>Оповещения</span>
+        </div>
+        <div
+          class="settings-vert-tab"
           :class="{ active: activeTab === 'appearance' }"
           @click="activeTab = 'appearance'"
         >
@@ -395,6 +402,199 @@
           </div>
         </div>
 
+        <!-- Tab 3: Alerts Settings -->
+        <div v-show="activeTab === 'alerts'" class="space-y-3 max-h-[420px] overflow-y-auto pr-1 text-xs">
+          <!-- Card 1: Trigger Mode & Scope -->
+          <div class="rounded-lg p-3 bg-[#161B22] border border-[rgba(140,167,190,0.18)] space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="font-medium text-white text-xs">Режим срабатывания</span>
+              <span class="text-[10px] text-[#8CA7BE]">По активному фильтру тулбара</span>
+            </div>
+
+            <div class="space-y-2 pt-0.5">
+              <label class="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="triggerMode"
+                  value="once"
+                  v-model="localAlerts.triggerMode"
+                  class="mt-0.5 accent-[#336FEE]"
+                />
+                <div>
+                  <div class="text-white font-medium">Однократно при возникновении сигнала</div>
+                  <div style="color: var(--text-secondary);" class="text-[11px]">
+                    Срабатывает один раз при переходе в Buy или Sell. Повтор только после сброса в Wait.
+                  </div>
+                </div>
+              </label>
+
+              <label class="flex items-start gap-2.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="triggerMode"
+                  value="interval"
+                  v-model="localAlerts.triggerMode"
+                  class="mt-0.5 accent-[#336FEE]"
+                />
+                <div>
+                  <div class="text-white font-medium">Повторять пока сигнал действует</div>
+                  <div style="color: var(--text-secondary);" class="text-[11px]">
+                    Периодически напоминать о действующем сигнале через заданный интервал.
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <!-- Interval duration (if interval selected) -->
+            <div
+              v-show="localAlerts.triggerMode === 'interval'"
+              class="flex items-center justify-between pt-2 border-t border-[rgba(140,167,190,0.12)]"
+            >
+              <span style="color: var(--text-secondary);">Интервал повтора:</span>
+              <div class="flex items-center gap-1.5 font-mono">
+                <input
+                  type="number"
+                  v-model.number="localAlerts.repeatIntervalMin"
+                  min="1"
+                  max="60"
+                  class="w-16 h-7 px-2 text-center text-xs rounded bg-[#0D1117] border border-[rgba(140,167,190,0.2)] text-white focus:outline-none focus:border-[#336FEE]"
+                />
+                <span class="text-[11px] text-[#8CA7BE]">мин</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: System Notifications -->
+          <div class="rounded-lg p-3 bg-[#161B22] border border-[rgba(140,167,190,0.18)] flex items-center justify-between gap-2">
+            <div>
+              <div class="font-medium text-white text-xs">Системные уведомления Windows</div>
+              <div class="text-[11px]" style="color: var(--text-secondary);">
+                Всплывающие карточки на рабочем столе с тикером, ценой и индикаторами
+              </div>
+            </div>
+            <button
+              type="button"
+              @click="localAlerts.systemNotifications = !localAlerts.systemNotifications"
+              class="pro-btn pro-btn-secondary !h-7 !px-3"
+            >
+              Уведомления: <strong :class="localAlerts.systemNotifications ? 'text-[#2CE89C]' : 'text-[#8CA7BE]'" class="ml-1">{{ localAlerts.systemNotifications ? 'ВКЛ' : 'ВЫКЛ' }}</strong>
+            </button>
+          </div>
+
+          <!-- Card 3: Sound Alerts & Custom Files -->
+          <div class="rounded-lg p-3 bg-[#161B22] border border-[rgba(140,167,190,0.18)] space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <div class="font-medium text-white text-xs">Звуковые сигналы</div>
+                <div class="text-[11px]" style="color: var(--text-secondary);">
+                  Воспроизведение звука при поступлении сигнала
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="localAlerts.soundEnabled = !localAlerts.soundEnabled"
+                class="pro-btn pro-btn-secondary !h-7 !px-3"
+              >
+                Звук: <strong :class="localAlerts.soundEnabled ? 'text-[#2CE89C]' : 'text-[#8CA7BE]'" class="ml-1">{{ localAlerts.soundEnabled ? 'ВКЛ' : 'ВЫКЛ' }}</strong>
+              </button>
+            </div>
+
+            <!-- Volume Slider -->
+            <div class="flex items-center justify-between gap-3 pt-1 border-t border-[rgba(140,167,190,0.12)]" :class="{ 'opacity-50 pointer-events-none': !localAlerts.soundEnabled }">
+              <span style="color: var(--text-secondary);" class="whitespace-nowrap">Громкость звука:</span>
+              <div class="flex items-center gap-2 flex-1 max-w-[200px]">
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="5"
+                  v-model.number="localAlerts.soundVolume"
+                  class="w-full h-1.5 bg-[#21262D] rounded-lg appearance-none cursor-pointer accent-[#336FEE]"
+                />
+                <span class="font-mono text-white min-w-[34px] text-right">{{ localAlerts.soundVolume }}%</span>
+              </div>
+            </div>
+
+            <!-- Buy Sound File -->
+            <div class="pt-2 border-t border-[rgba(140,167,190,0.12)] space-y-1.5" :class="{ 'opacity-50 pointer-events-none': !localAlerts.soundEnabled }">
+              <div class="flex items-center justify-between">
+                <span class="font-medium text-[#2CE89C] flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-[#2CE89C]"></span>
+                  Звук для Buy (Покупка):
+                </span>
+                <button
+                  type="button"
+                  @click="testSoundPreview('BUY')"
+                  class="px-2 py-0.5 rounded text-[11px] bg-[rgba(44,232,156,0.15)] text-[#2CE89C] hover:bg-[rgba(44,232,156,0.25)] border border-[rgba(44,232,156,0.3)] cursor-pointer transition flex items-center gap-1"
+                >
+                  ▶ Прослушать
+                </button>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <div class="flex-1 min-w-0 px-2.5 py-1 text-[11px] rounded bg-[#0D1117] border border-[rgba(140,167,190,0.2)] text-[#8CA7BE] truncate font-mono">
+                  {{ localAlerts.buySoundPath ? getFilename(localAlerts.buySoundPath) : 'Встроенный синтезатор (аккорд C-E-G)' }}
+                </div>
+                <button
+                  type="button"
+                  @click="chooseSoundFile('BUY')"
+                  class="px-2.5 py-1 rounded text-xs bg-[#21262D] hover:bg-[#30363D] text-white border border-[rgba(140,167,190,0.25)] cursor-pointer transition whitespace-nowrap"
+                >
+                  Обзор...
+                </button>
+                <button
+                  v-if="localAlerts.buySoundPath"
+                  type="button"
+                  @click="localAlerts.buySoundPath = ''"
+                  title="Сбросить на встроенный звук"
+                  class="px-2 py-1 rounded text-xs text-[#FF6969] hover:bg-[#FF6969]/10 border border-transparent cursor-pointer transition"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- Sell Sound File -->
+            <div class="pt-2 border-t border-[rgba(140,167,190,0.12)] space-y-1.5" :class="{ 'opacity-50 pointer-events-none': !localAlerts.soundEnabled }">
+              <div class="flex items-center justify-between">
+                <span class="font-medium text-[#FF6969] flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-[#FF6969]"></span>
+                  Звук для Sell (Продажа):
+                </span>
+                <button
+                  type="button"
+                  @click="testSoundPreview('SELL')"
+                  class="px-2 py-0.5 rounded text-[11px] bg-[rgba(255,105,105,0.15)] text-[#FF6969] hover:bg-[rgba(255,105,105,0.25)] border border-[rgba(255,105,105,0.3)] cursor-pointer transition flex items-center gap-1"
+                >
+                  ▶ Прослушать
+                </button>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <div class="flex-1 min-w-0 px-2.5 py-1 text-[11px] rounded bg-[#0D1117] border border-[rgba(140,167,190,0.2)] text-[#8CA7BE] truncate font-mono">
+                  {{ localAlerts.sellSoundPath ? getFilename(localAlerts.sellSoundPath) : 'Встроенный синтезатор (аккорд G-E-C)' }}
+                </div>
+                <button
+                  type="button"
+                  @click="chooseSoundFile('SELL')"
+                  class="px-2.5 py-1 rounded text-xs bg-[#21262D] hover:bg-[#30363D] text-white border border-[rgba(140,167,190,0.25)] cursor-pointer transition whitespace-nowrap"
+                >
+                  Обзор...
+                </button>
+                <button
+                  v-if="localAlerts.sellSoundPath"
+                  type="button"
+                  @click="localAlerts.sellSoundPath = ''"
+                  title="Сбросить на встроенный звук"
+                  class="px-2 py-1 rounded text-xs text-[#FF6969] hover:bg-[#FF6969]/10 border border-transparent cursor-pointer transition"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Tab 3: Appearance -->
         <div v-show="activeTab === 'appearance'" class="space-y-3 text-xs max-h-[420px] overflow-y-auto pr-1">
           <div class="flex items-center justify-between gap-2 pb-2 border-b border-[rgba(140,167,190,0.12)]">
@@ -479,7 +679,8 @@
 <script setup>
 import { ref, reactive, watch } from 'vue';
 import UiModal from '@/components/ui/UiModal.vue';
-import { DEFAULT_TABLE_COLUMNS } from '@/composables/useSettings.js';
+import { DEFAULT_TABLE_COLUMNS, DEFAULT_ALERTS } from '@/composables/useSettings.js';
+import { playAlertSound } from '@/services/soundService.js';
 
 const props = defineProps({
   isOpen: {
@@ -519,6 +720,10 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  alerts: {
+    type: Object,
+    default: () => ({ ...DEFAULT_ALERTS }),
+  },
   tableColumns: {
     type: Array,
     default: () => [],
@@ -552,6 +757,44 @@ function toggleSection(section) {
 const localDaysX = ref(props.volumeDaysX);
 const localThresholds = reactive({ ...props.thresholds });
 const localIndicatorParams = reactive({ ...props.indicatorParams });
+
+
+const localAlerts = reactive({
+  ...DEFAULT_ALERTS,
+  ...(props.alerts || {}),
+});
+
+watch(() => props.alerts, (newA) => {
+  if (newA) Object.assign(localAlerts, newA);
+}, { deep: true });
+
+function getFilename(path) {
+  if (!path) return '';
+  const parts = path.split(/[\/\\]/);
+  return parts[parts.length - 1];
+}
+
+async function chooseSoundFile(direction) {
+  if (typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.selectAudioFile === 'function') {
+    const filePath = await window.electronAPI.selectAudioFile();
+    if (filePath) {
+      if (direction === 'BUY') {
+        localAlerts.buySoundPath = filePath;
+      } else {
+        localAlerts.sellSoundPath = filePath;
+      }
+    }
+  }
+}
+
+function testSoundPreview(direction) {
+  const customPath = direction === 'BUY' ? localAlerts.buySoundPath : localAlerts.sellSoundPath;
+  playAlertSound({
+    direction,
+    customPath,
+    volume: localAlerts.soundVolume,
+  });
+}
 
 const localTableColumns = reactive([]);
 
@@ -628,6 +871,7 @@ function saveAndClose() {
     volumeDaysX: localDaysX.value,
     thresholds: { ...localThresholds },
     indicatorParams: { ...localIndicatorParams },
+    alerts: { ...localAlerts },
     tableColumns: localTableColumns.map(c => ({ ...c })),
   });
   emit('close');

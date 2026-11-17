@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const backendManager = require('./backend-manager');
@@ -158,6 +158,24 @@ ipcMain.handle('backend-restart', async () => {
 });
 
 // Native notifications IPC
+
+// Audio file selection IPC
+ipcMain.handle('select-audio-file', async () => {
+  if (!mainWindow) return null;
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Выберите аудиофайл для сигнала',
+    filters: [
+      { name: 'Аудиофайлы (*.mp3;*.wav;*.ogg;*.m4a;*.aac)', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'aac'] },
+      { name: 'Все файлы (*.*)', extensions: ['*'] },
+    ],
+    properties: ['openFile'],
+  });
+  if (!res.canceled && res.filePaths && res.filePaths.length > 0) {
+    return res.filePaths[0];
+  }
+  return null;
+});
+
 ipcMain.on('show-notification', (_event, { title, body }) => {
   if (Notification.isSupported()) {
     new Notification({

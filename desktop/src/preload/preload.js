@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Native notifications
   showNotification: (options) => ipcRenderer.send('show-notification', options),
+  selectAudioFile: () => ipcRenderer.invoke('select-audio-file'),
 
   // Events from main
   onBackendStatusChange: (callback) => {
