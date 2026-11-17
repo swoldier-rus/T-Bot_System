@@ -302,7 +302,7 @@ function renderTable(flashedTicker = null, flashDir = 0) {
 
         const rsiClass = row.rsiSignal > 0 ? 'sig-buy' : (row.rsiSignal < 0 ? 'sig-sell' : 'sig-neutral');
         const nwClass = row.nwSignal > 0 ? 'sig-buy' : (row.nwSignal < 0 ? 'sig-sell' : 'sig-neutral');
-        const nwLabel = row.nwSignal > 0 ? 'Покупка' : (row.nwSignal < 0 ? 'Продажа' : 'Нейтрально');
+        const nwLabel = row.nwSignal > 0 ? 'Buy' : (row.nwSignal < 0 ? 'Sell' : 'Wait');
 
         const cciClass = row.cciSignal > 0 ? 'sig-buy' : (row.cciSignal < 0 ? 'sig-sell' : 'sig-neutral');
         const cciFormatted = (row.cci > 0 ? '+' : '') + Math.round(row.cci);
@@ -313,20 +313,20 @@ function renderTable(flashedTicker = null, flashDir = 0) {
             statusBadgeHtml = `
                 <span class="sig-pill sig-buy" title="Сигналы за Покупку: ${row.reasonsText}">
                     <span class="w-1.5 h-1.5 rounded-full bg-[#2CE89C]"></span>
-                    <span>Покупка</span>
+                    <span>Buy</span>
                 </span>
             `;
         } else if (row.finalStatus === 'SELL') {
             statusBadgeHtml = `
                 <span class="sig-pill sig-sell" title="Сигналы за Продажу: ${row.reasonsText}">
                     <span class="w-1.5 h-1.5 rounded-full bg-[#FF6969]"></span>
-                    <span>Продажа</span>
+                    <span>Sell</span>
                 </span>
             `;
         } else {
             statusBadgeHtml = `
                 <span class="sig-pill sig-neutral" title="${row.reasonsText}">
-                    <span>Ожидание</span>
+                    <span>Wait</span>
                 </span>
             `;
         }

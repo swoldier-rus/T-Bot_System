@@ -49,6 +49,10 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  currentPrice: {
+    type: Number,
+    default: null,
+  },
 });
 
 const isMono = computed(() => props.type !== 'nw');
@@ -75,9 +79,9 @@ const minWidthClass = computed(() => {
 
 const displayValue = computed(() => {
   if (props.type === 'nw') {
-    if (props.signal > 0) return 'Покупка';
-    if (props.signal < 0) return 'Продажа';
-    return 'Нейтрально';
+    if (props.signal > 0) return 'Buy';
+    if (props.signal < 0) return 'Sell';
+    return 'Wait';
   }
   if (props.type === 'cci') {
     const num = Math.round(Number(props.value));
@@ -87,5 +91,15 @@ const displayValue = computed(() => {
     return props.value.toFixed(1);
   }
   return props.value;
+});
+
+const cellTooltip = computed(() => {
+  if (props.type === 'nw' && props.bands) {
+    const upper = typeof props.bands.upper === 'number' ? props.bands.upper : '—';
+    const lower = typeof props.bands.lower === 'number' ? props.bands.lower : '—';
+    const price = typeof props.currentPrice === 'number' ? props.currentPrice : '—';
+    return `NWE Конверт:\nВерхняя: ${upper}\nЦена: ${price}\nНижняя: ${lower}`;
+  }
+  return null;
 });
 </script>

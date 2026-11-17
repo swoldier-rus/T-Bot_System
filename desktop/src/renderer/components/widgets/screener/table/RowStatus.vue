@@ -6,7 +6,7 @@
       :title="`Сигналы за Покупку: ${reasonsText}`"
     >
       <span class="w-1.5 h-1.5 rounded-full bg-[#2CE89C]"></span>
-      <span>Покупка</span>
+      <span>Buy</span>
     </span>
 
     <span
@@ -15,7 +15,7 @@
       :title="`Сигналы за Продажу: ${reasonsText}`"
     >
       <span class="w-1.5 h-1.5 rounded-full bg-[#FF6969]"></span>
-      <span>Продажа</span>
+      <span>Sell</span>
     </span>
 
     <span
@@ -23,7 +23,7 @@
       class="sig-pill sig-neutral"
       :title="reasonsText"
     >
-      <span>Ожидание</span>
+      <span>Wait</span>
     </span>
   </td>
 </template>
